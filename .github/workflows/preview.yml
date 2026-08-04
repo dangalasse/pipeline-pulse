@@ -1,0 +1,86 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Deploy Cloudflare preview
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_GIT_SHA: ${{ github.sha }}
+          VITE_DEPLOY_ENV: preview
+          VITE_BUILD_TIME: ${{ github.event.pull_request.updated_at }}
+          VITE_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run build
+
+      - name: Deploy Workers preview
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            deploy --env preview
+            --var GIT_SHA:${{ github.sha }}
+            --var BUILD_TIME:${{ github.event.pull_request.updated_at }}
+            --var GITHUB_RUN_URL:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            --var DEPLOY_ENV:preview
+
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = 'https://pipeline-pulse-preview.dantonguerragalasse.workers.dev';
+            const body = [
+              '### Pipeline Pulse preview',
+              '',
+              `Deployed from \`${context.payload.pull_request.head.sha.slice(0, 7)}\`.`,
+              '',
+              `**Preview:** ${url}`,
+              '',
+              `Workflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) =>
+              c.user?.type === 'Bot' && c.body?.includes('Pipeline Pulse preview'),
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

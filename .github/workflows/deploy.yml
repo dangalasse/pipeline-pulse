@@ -1,0 +1,116 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    name: Staging
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_GIT_SHA: ${{ github.sha }}
+          VITE_DEPLOY_ENV: staging
+          VITE_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+          VITE_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run build
+
+      - name: Deploy staging Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            deploy --env staging
+            --var GIT_SHA:${{ github.sha }}
+            --var BUILD_TIME:${{ github.event.head_commit.timestamp }}
+            --var GITHUB_RUN_URL:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            --var DEPLOY_ENV:staging
+
+      - name: Smoke /api/health
+        run: |
+          set -euo pipefail
+          URL="${{ vars.STAGING_URL }}"
+          if [ -z "$URL" ]; then
+            URL="https://pipeline-pulse-staging.dantonguerragalasse.workers.dev"
+          fi
+          for i in 1 2 3 4 5; do
+            if curl -fsS "$URL/api/health" | grep -q '"ok":true'; then
+              echo "smoke ok against $URL"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "smoke failed against $URL" >&2
+          exit 1
+
+  deploy-production:
+    name: Production
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_GIT_SHA: ${{ github.sha }}
+          VITE_DEPLOY_ENV: production
+          VITE_BUILD_TIME: ${{ github.event.head_commit.timestamp || github.run_started_at }}
+          VITE_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run build
+
+      - name: Deploy production Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            deploy
+            --var GIT_SHA:${{ github.sha }}
+            --var BUILD_TIME:${{ github.event.head_commit.timestamp || github.run_started_at }}
+            --var GITHUB_RUN_URL:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            --var DEPLOY_ENV:production
+
+      - name: Smoke /api/health
+        run: |
+          set -euo pipefail
+          URL="${{ vars.PRODUCTION_URL }}"
+          if [ -z "$URL" ]; then
+            URL="https://pipeline.galasse.dev"
+          fi
+          for i in 1 2 3 4 5 6 8; do
+            if curl -fsS "$URL/api/health" | grep -q '"ok":true'; then
+              echo "smoke ok against $URL"
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "smoke failed against $URL" >&2
+          exit 1

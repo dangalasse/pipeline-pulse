@@ -1,0 +1,38 @@
+{
+  "name": "pipeline-pulse",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CI/CD showcase — GitHub Actions → Cloudflare Workers edge meta-dashboard",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:staging": "npm run build && wrangler deploy --env staging",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "hono": "^4.7.10",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@cloudflare/workers-types": "^4.20250525.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.2",
+    "esbuild": "^0.28.1",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.1.4",
+    "wrangler": "^4.19.1"
+  }
+}

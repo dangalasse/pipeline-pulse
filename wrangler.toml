@@ -1,0 +1,38 @@
+name = "pipeline-pulse"
+main = "worker/index.ts"
+compatibility_date = "2025-05-05"
+workers_dev = true
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+DEPLOY_ENV = "production"
+GIT_SHA = "local"
+BUILD_TIME = "local"
+GITHUB_RUN_URL = ""
+GITHUB_REPO = "dangalasse/pipeline-pulse"
+
+[env.staging]
+name = "pipeline-pulse-staging"
+workers_dev = true
+
+[env.staging.vars]
+DEPLOY_ENV = "staging"
+GIT_SHA = "local"
+BUILD_TIME = "local"
+GITHUB_RUN_URL = ""
+GITHUB_REPO = "dangalasse/pipeline-pulse"
+
+[env.preview]
+name = "pipeline-pulse-preview"
+workers_dev = true
+
+[env.preview.vars]
+DEPLOY_ENV = "preview"
+GIT_SHA = "local"
+BUILD_TIME = "local"
+GITHUB_RUN_URL = ""
+GITHUB_REPO = "dangalasse/pipeline-pulse"
