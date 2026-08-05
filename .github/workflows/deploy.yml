@@ -10,9 +10,36 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    name: Deploy gate
+    runs-on: ubuntu-latest
+    outputs:
+      has_token: ${{ steps.check.outputs.has_token }}
+    steps:
+      - name: Check token + live edge
+        id: check
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "production → https://pipeline.galasse.dev"
+          echo "staging    → https://staging.pipeline.galasse.dev"
+          curl -fsS https://pipeline.galasse.dev/api/health | tee /tmp/health.json
+          grep -q '"ok":true' /tmp/health.json
+          if [ -n "${TOKEN}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            echo "CLOUDFLARE_API_TOKEN is set — wrangler jobs will run."
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "CLOUDFLARE_API_TOKEN not set — wrangler jobs skipped."
+            echo "Create token (Edit Cloudflare Workers) then:"
+            echo "  gh secret set CLOUDFLARE_API_TOKEN -R dangalasse/pipeline-pulse"
+          fi
+
   deploy-staging:
     name: Staging
-    if: github.ref == 'refs/heads/main' && secrets.CLOUDFLARE_API_TOKEN != ''
+    needs: gate
+    if: github.ref == 'refs/heads/main' && needs.gate.outputs.has_token == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -38,7 +65,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           command: >
             deploy --env staging
             --var GIT_SHA:${{ github.sha }}
@@ -47,10 +74,11 @@ jobs:
             --var DEPLOY_ENV:staging
 
       - name: Smoke /api/health
+        env:
+          URL: ${{ vars.STAGING_URL }}
         run: |
           set -euo pipefail
-          URL="${{ vars.STAGING_URL }}"
-          if [ -z "$URL" ]; then
+          if [ -z "${URL}" ]; then
             URL="https://staging.pipeline.galasse.dev"
           fi
           for i in 1 2 3 4 5; do
@@ -65,7 +93,8 @@ jobs:
 
   deploy-production:
     name: Production
-    if: startsWith(github.ref, 'refs/tags/v') && secrets.CLOUDFLARE_API_TOKEN != ''
+    needs: gate
+    if: startsWith(github.ref, 'refs/tags/v') && needs.gate.outputs.has_token == 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -91,7 +120,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           command: >
             deploy
             --var GIT_SHA:${{ github.sha }}
@@ -100,10 +129,11 @@ jobs:
             --var DEPLOY_ENV:production
 
       - name: Smoke /api/health
+        env:
+          URL: ${{ vars.PRODUCTION_URL }}
         run: |
           set -euo pipefail
-          URL="${{ vars.PRODUCTION_URL }}"
-          if [ -z "$URL" ]; then
+          if [ -z "${URL}" ]; then
             URL="https://pipeline.galasse.dev"
           fi
           for i in 1 2 3 4 5 6 8; do
@@ -115,28 +145,3 @@ jobs:
           done
           echo "smoke failed against $URL" >&2
           exit 1
-
-  # Keeps the Deploy workflow green while documenting the one remaining secret.
-  # Live edge is already provisioned (pipeline.galasse.dev / staging.pipeline.galasse.dev).
-  gate:
-    name: Deploy gate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report deploy readiness
-        env:
-          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-        run: |
-          set -euo pipefail
-          echo "CI artifact path is ready; edge URLs:"
-          echo "  production → https://pipeline.galasse.dev"
-          echo "  staging    → https://staging.pipeline.galasse.dev"
-          if [ "$HAS_TOKEN" = "true" ]; then
-            echo "CLOUDFLARE_API_TOKEN is set — wrangler deploy jobs will run."
-          else
-            echo "CLOUDFLARE_API_TOKEN not set yet."
-            echo "Create a token (Edit Cloudflare Workers template) and run:"
-            echo "  gh secret set CLOUDFLARE_API_TOKEN -R dangalasse/pipeline-pulse"
-            echo "  gh secret set CLOUDFLARE_ACCOUNT_ID -R dangalasse/pipeline-pulse -b 4483b58d6fc9d89f06c521fd83a9a963"
-          fi
-          curl -fsS https://pipeline.galasse.dev/api/health | tee /tmp/health.json
-          grep -q '"ok":true' /tmp/health.json
