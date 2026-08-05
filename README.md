@@ -8,7 +8,7 @@
 | Surface | URL |
 |---------|-----|
 | Production | https://pipeline.galasse.dev |
-| Staging | https://pipeline-pulse-staging.dantonguerragalasse.workers.dev |
+| Staging | https://staging.pipeline.galasse.dev |
 | Actions | https://github.com/dangalasse/pipeline-pulse/actions |
 | Portfolio | https://portfolio.galasse.dev |
 
@@ -63,17 +63,23 @@ Build-time env (also injected by Actions):
 
 ## Secrets & environments
 
-GitHub repository secrets:
+Edge is already live. To let GitHub Actions run `wrangler deploy` (staging on `main`, production on `v*`), add:
 
-- `CLOUDFLARE_API_TOKEN` — Workers edit + account read
-- `CLOUDFLARE_ACCOUNT_ID`
+```bash
+# Dashboard → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers"
+gh secret set CLOUDFLARE_API_TOKEN -R dangalasse/pipeline-pulse
+gh secret set CLOUDFLARE_ACCOUNT_ID -R dangalasse/pipeline-pulse \
+  -b '4483b58d6fc9d89f06c521fd83a9a963'
+```
 
-GitHub Environments: `staging`, `production` (protect production with required reviewers if desired).
+GitHub Environments: `staging`, `production` (optional required reviewers on production).
 
-Optional environment variables:
+Environment variables:
 
-- `STAGING_URL`
-- `PRODUCTION_URL` (default `https://pipeline.galasse.dev`)
+- `STAGING_URL` → `https://staging.pipeline.galasse.dev`
+- `PRODUCTION_URL` → `https://pipeline.galasse.dev`
+
+Repo variable `CLOUDFLARE_ACCOUNT_ID` is also set as a fallback for `wrangler-action`.
 
 ## Promote to production
 
