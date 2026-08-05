@@ -91,3 +91,5 @@ git push origin v1.0.0
 ## Why this repo exists
 
 Portfolio proof for **SRE / DevOps**: a readable Actions tab, PR previews, staging smoke, and a protected production gate — hosted on the edge, not SSH to a box.
+
+<!-- demo PR for Actions history 2026-08-05 -->
