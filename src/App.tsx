@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { DeployMeta } from '../shared/deploy-meta';
 import { isLiveSha, shortSha } from '../shared/deploy-meta';
+import { LocaleToggle } from './components/LocaleToggle';
+import { PipelineCanvas } from './components/PipelineCanvas';
+import { useLiveDemo } from './lib/use-live-demo';
+import { useLocale } from './lib/use-locale';
 
 type LoadState =
   | { status: 'loading' }
@@ -20,19 +24,19 @@ function buildTimeMeta(): DeployMeta {
   };
 }
 
-const PIPELINE_STEPS = [
-  { id: 'ci', label: 'CI', detail: 'lint · typecheck · test · build' },
-  {
-    id: 'preview',
-    label: 'PR Preview',
-    detail: 'Cloudflare Workers preview URL',
-  },
-  { id: 'staging', label: 'Staging', detail: 'push main → smoke /api/health' },
-  { id: 'prod', label: 'Production', detail: 'tag v* · protected environment' },
-] as const;
-
 export default function App() {
+  const { locale, t, toggleHref, otherLabel, currentLabel } = useLocale();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const {
+    demo,
+    nodeStatuses,
+    loading: demoLoading,
+    error: demoError,
+    aiReview,
+    aiLoading,
+    startDemo,
+    requestAiReview,
+  } = useLiveDemo({ locale, t });
 
   useEffect(() => {
     let cancelled = false;
@@ -68,24 +72,42 @@ export default function App() {
     ? `https://github.com/${meta.githubRepo}/commit/${meta.gitSha}`
     : actionsUrl;
 
+  const demoFailed =
+    demo?.workflowStatus === 'failure' ||
+    Object.values(demo?.nodeStatuses ?? {}).some((s) => s === 'failure');
+
   return (
     <div className="shell">
       <div className="atmosphere" aria-hidden="true" />
+      <div className="top-bar">
+        <LocaleToggle
+          locale={locale}
+          toggleHref={toggleHref}
+          otherLabel={otherLabel}
+          currentLabel={currentLabel}
+          switchLanguage={t.switchLanguage}
+        />
+      </div>
       <header className="hero">
-        <p className="eyebrow">galasse · devops showcase</p>
-        <h1 className="brand">Pipeline Pulse</h1>
-        <p className="lede">
-          Live meta-dashboard for a full GitHub Actions conveyor — Cloudflare
-          Workers at the edge.
-        </p>
+        <p className="eyebrow">{t.eyebrow}</p>
+        <h1 className="brand">{t.title}</h1>
+        <p className="lede">{t.lede}</p>
         <div className="cta-row">
-          <a
+          <button
+            type="button"
             className="btn primary"
+            onClick={() => void startDemo()}
+            disabled={demoLoading}
+          >
+            {demoLoading ? t.runningDemo : t.runLiveDemo}
+          </button>
+          <a
+            className="btn ghost"
             href={actionsUrl}
             target="_blank"
             rel="noreferrer"
           >
-            View Actions
+            {t.viewActions}
           </a>
           <a
             className="btn ghost"
@@ -93,19 +115,27 @@ export default function App() {
             target="_blank"
             rel="noreferrer"
           >
-            Repository
+            {t.repository}
           </a>
         </div>
+        {demoError ? <p className="demo-error">{demoError}</p> : null}
+        {demo?.githubRunUrl ? (
+          <p className="demo-run-link">
+            <a href={demo.githubRunUrl} target="_blank" rel="noreferrer">
+              {t.openGithubRun} →
+            </a>
+          </p>
+        ) : null}
       </header>
 
       <section className="panel" aria-labelledby="deploy-heading">
         <div className="panel-head">
-          <h2 id="deploy-heading">This deploy</h2>
+          <h2 id="deploy-heading">{t.thisDeploy}</h2>
           <span className={`pill env-${meta.env}`}>{meta.env}</span>
         </div>
         <dl className="meta-grid">
           <div>
-            <dt>Git SHA</dt>
+            <dt>{t.gitSha}</dt>
             <dd>
               <a
                 href={commitUrl}
@@ -118,46 +148,74 @@ export default function App() {
             </dd>
           </div>
           <div>
-            <dt>Built at</dt>
+            <dt>{t.builtAt}</dt>
             <dd className="mono">{meta.buildTime}</dd>
           </div>
           <div>
-            <dt>Edge clock</dt>
+            <dt>{t.edgeClock}</dt>
             <dd className="mono">{meta.edgeTime}</dd>
           </div>
           <div>
-            <dt>CF-Ray</dt>
+            <dt>{t.cfRay}</dt>
             <dd className="mono">{meta.region ?? '—'}</dd>
           </div>
         </dl>
         {meta.githubRunUrl ? (
           <p className="run-link">
             <a href={meta.githubRunUrl} target="_blank" rel="noreferrer">
-              Open the workflow run that shipped this build →
+              {t.openRunLink}
             </a>
           </p>
         ) : null}
       </section>
 
-      <section className="panel" aria-labelledby="belt-heading">
-        <h2 id="belt-heading">Conveyor belt</h2>
-        <ol className="belt">
-          {PIPELINE_STEPS.map((step, index) => (
-            <li key={step.id} className="belt-step">
-              <span className="step-index">{index + 1}</span>
-              <div>
-                <strong>{step.label}</strong>
-                <p>{step.detail}</p>
+      <section className="panel panel-canvas" aria-labelledby="belt-heading">
+        <h2 id="belt-heading">{t.conveyorHeading}</h2>
+        <PipelineCanvas locale={locale} t={t} nodeStatuses={nodeStatuses} />
+        {demoFailed ? (
+          <div className="ai-review-block">
+            <p className="demo-failed-label">{t.demoFailed}</p>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => void requestAiReview()}
+              disabled={aiLoading}
+            >
+              {aiLoading ? t.aiReviewing : t.aiReview}
+            </button>
+            {aiReview ? (
+              <div className="ai-review-result">
+                <h3>{t.aiReviewTitle}</h3>
+                {aiReview.summary ? (
+                  <p>
+                    <strong>{t.aiReviewTitle}:</strong> {aiReview.summary}
+                  </p>
+                ) : null}
+                {aiReview.likelyCause ? (
+                  <p>
+                    <strong>Cause:</strong> {aiReview.likelyCause}
+                  </p>
+                ) : null}
+                {aiReview.suggestedFix ? (
+                  <p>
+                    <strong>Fix:</strong> {aiReview.suggestedFix}
+                  </p>
+                ) : null}
+                {aiReview.error || aiReview.message ? (
+                  <p className="demo-error">
+                    {aiReview.error ?? aiReview.message}
+                  </p>
+                ) : null}
               </div>
-            </li>
-          ))}
-        </ol>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <footer className="foot">
-        <span>OIDC-ready secrets · Environments staging / production</span>
+        <span>{t.footerSecrets}</span>
         <span className="mono">
-          {state.status === 'loading' ? 'probing edge…' : 'edge ok'}
+          {state.status === 'loading' ? t.probingEdge : t.edgeOk}
         </span>
       </footer>
     </div>

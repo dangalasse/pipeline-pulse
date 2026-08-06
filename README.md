@@ -14,24 +14,29 @@
 
 The home page shows the **git SHA**, **environment**, **build time**, and **workflow run** that shipped the build — proof the pipeline is real, not a screenshot.
 
+## Features
+
+- **Bilingual UI** — PT-BR (default) / ENG-US via `localStorage` + `?lang=` (same pattern as [edge-labs](https://edge.galasse.dev))
+- **n8n-style pipeline canvas** — Push → CI → Test → AI Review → Preview → Staging → Prod with animated edges; click a node for workflow YAML
+- **Run live demo** — dispatches `live-demo.yml` (lint / typecheck / test / build only, **no deploy**)
+- **AI review on failure** — Worker proxies to Edge Labs `POST /analyze-error`
+
 ## Conveyor belt
 
 ```mermaid
-flowchart TD
-  push[push_or_PR] --> lint[lint_and_typecheck]
-  lint --> test[unit_tests]
-  test --> build[build_artifact]
-  build --> previewJob[PR_preview_Workers]
-  build --> staging[deploy_staging]
-  staging --> smoke[smoke_healthcheck]
-  smoke --> prodGate[production_environment_gate]
-  prodGate --> prod[deploy_production]
-  prod --> notify[commit_status_and_badge]
+flowchart LR
+  push[Push] --> ci[CI]
+  ci --> test[Test]
+  test --> ai[AI_Review]
+  ai --> preview[Preview]
+  preview --> staging[Staging]
+  staging --> prod[Prod]
 ```
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `ci.yml` | PR + push `main` | Biome, typecheck, Vitest, Vite build |
+| `live-demo.yml` | `workflow_dispatch` (+ UI button) | Same gates as CI — **no production deploy** |
 | `preview.yml` | PR | Deploy `pipeline-pulse-preview` Worker + comment URL |
 | `deploy.yml` | push `main` | Staging + smoke `/api/health` |
 | `deploy.yml` | tag `v*` | Production (GitHub Environment `production`) + smoke |
@@ -39,17 +44,19 @@ flowchart TD
 ## Stack
 
 - **Vite + React 19** — meta-dashboard UI
-- **Hono** on **Cloudflare Workers** — `/api/health`, `/api/deploy-meta`
+- **Hono** on **Cloudflare Workers** — `/api/health`, `/api/deploy-meta`, `/api/demo-run`, `/api/demo-ai-review`
 - **Workers static assets** — SPA from `dist/`
 - **Biome** + **Vitest** + **Wrangler**
+- **Terraform stubs** — `infra/terraform/` (Cloudflare Workers routes)
 
 ## Local development
 
 ```bash
 npm ci
-npm run dev          # Vite UI only
+npm run dev          # Vite UI only (API needs wrangler)
 npm test
 npm run lint
+npm run typecheck
 npm run build
 npx wrangler dev     # Worker + assets (needs Cloudflare auth)
 ```
@@ -59,17 +66,15 @@ Build-time env (also injected by Actions):
 - `VITE_GIT_SHA`
 - `VITE_DEPLOY_ENV`
 - `VITE_BUILD_TIME`
-- `VITE_GITHUB_RUN_URL`
+- `VITE_GITHUB_RUN_URL` — concrete Actions run URL (`…/actions/runs/${{ github.run_id }}`)
 
 ## Secrets & environments
 
-Edge is already live. To let GitHub Actions run `wrangler deploy` (staging on `main`, production on `v*`), add:
+### Cloudflare deploy (GitHub Actions)
 
 ```bash
-# Dashboard → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers"
 gh secret set CLOUDFLARE_API_TOKEN -R dangalasse/pipeline-pulse
-gh secret set CLOUDFLARE_ACCOUNT_ID -R dangalasse/pipeline-pulse \
-  -b '4483b58d6fc9d89f06c521fd83a9a963'
+gh variable set CLOUDFLARE_ACCOUNT_ID -R dangalasse/pipeline-pulse -b 'YOUR_ACCOUNT_ID'
 ```
 
 GitHub Environments: `staging`, `production` (optional required reviewers on production).
@@ -79,7 +84,24 @@ Environment variables:
 - `STAGING_URL` → `https://staging.pipeline.galasse.dev`
 - `PRODUCTION_URL` → `https://pipeline.galasse.dev`
 
-Repo variable `CLOUDFLARE_ACCOUNT_ID` is also set as a fallback for `wrangler-action`.
+### Live demo (`GITHUB_TOKEN` on the Worker)
+
+The **Run live demo** button calls `POST /api/demo-run`, which dispatches `live-demo.yml` via the GitHub REST API. Without a token the API returns **503** with a clear message.
+
+Create a fine-grained or classic PAT with **`actions:write`** (and `contents:read`) on `dangalasse/pipeline-pulse`:
+
+```bash
+# Production Worker
+npx wrangler secret put GITHUB_TOKEN
+# paste token when prompted
+
+# Staging (optional)
+npx wrangler secret put GITHUB_TOKEN --env staging
+```
+
+Or via the Cloudflare dashboard: Workers → `pipeline-pulse` → Settings → Variables → Encrypt `GITHUB_TOKEN`.
+
+**Rate limit:** ~1 demo dispatch per minute per Worker isolate (in-memory).
 
 ## Promote to production
 

@@ -19,3 +19,4 @@ dist-ssr
 # TypeScript
 *.tsbuildinfo
 node_modules/.tmp
+.cf_upload_code.js
