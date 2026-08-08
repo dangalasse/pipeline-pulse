@@ -50,10 +50,7 @@ export default function App() {
   const widgetIdRef = useRef<string | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  const getTurnstileToken = useCallback(
-    () => turnstileTokenRef.current,
-    [],
-  );
+  const getTurnstileToken = useCallback(() => turnstileTokenRef.current, []);
   const resetTurnstile = useCallback(() => {
     turnstileTokenRef.current = null;
     if (window.turnstile && widgetIdRef.current) {

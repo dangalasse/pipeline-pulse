@@ -142,16 +142,22 @@ export async function verifyTurnstile(
 
 function encodeTicket(claims: TicketClaims, signature: string): string {
   const json = JSON.stringify(claims);
-  const b64 = btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const b64 = btoa(json)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
   return `${b64}.${signature}`;
 }
 
-function decodeTicket(raw: string): { claims: TicketClaims; signature: string } | null {
+function decodeTicket(
+  raw: string,
+): { claims: TicketClaims; signature: string } | null {
   const [b64, signature] = raw.split('.');
   if (!b64 || !signature) return null;
   try {
     const padded = b64.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+    const pad =
+      padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
     const json = atob(padded + pad);
     const claims = JSON.parse(json) as TicketClaims;
     return { claims, signature };
@@ -198,7 +204,11 @@ export async function issueTicket(
   };
 }
 
-async function consumeJti(kv: KVNamespace, jti: string, ttlSec: number): Promise<void> {
+async function consumeJti(
+  kv: KVNamespace,
+  jti: string,
+  ttlSec: number,
+): Promise<void> {
   const key = `jti:${jti}`;
   const existing = await kv.get(key);
   if (existing) {
@@ -258,18 +268,34 @@ export async function enforceTicketAndQuota(
   const payload = JSON.stringify(claims);
   const valid = await hmacVerify(env.DEMO_TICKET_SECRET, payload, signature);
   if (!valid) {
-    throw new DemoGateError(403, 'ticket_invalid', 'Demo ticket signature failed.');
+    throw new DemoGateError(
+      403,
+      'ticket_invalid',
+      'Demo ticket signature failed.',
+    );
   }
   if (claims.aud !== expectedAud) {
-    throw new DemoGateError(403, 'ticket_aud', 'Demo ticket audience mismatch.');
+    throw new DemoGateError(
+      403,
+      'ticket_aud',
+      'Demo ticket audience mismatch.',
+    );
   }
   if (claims.exp < Math.floor(Date.now() / 1000)) {
-    throw new DemoGateError(403, 'ticket_expired', 'Demo ticket expired — refresh the check.');
+    throw new DemoGateError(
+      403,
+      'ticket_expired',
+      'Demo ticket expired — refresh the check.',
+    );
   }
   const ip = clientIp(request);
   const ipHash = await hashIp(ip, env.DEMO_TICKET_SECRET);
   if (claims.ipHash !== ipHash) {
-    throw new DemoGateError(403, 'ticket_ip', 'Demo ticket bound to another client.');
+    throw new DemoGateError(
+      403,
+      'ticket_ip',
+      'Demo ticket bound to another client.',
+    );
   }
 
   const remainingTtl = Math.max(60, claims.exp - Math.floor(Date.now() / 1000));
@@ -291,7 +317,10 @@ export async function enforceTicketAndQuota(
   );
 }
 
-export function gateErrorResponse(err: unknown, cors: HeadersInit = {}): Response {
+export function gateErrorResponse(
+  err: unknown,
+  cors: HeadersInit = {},
+): Response {
   if (err instanceof DemoGateError) {
     return new Response(
       JSON.stringify({

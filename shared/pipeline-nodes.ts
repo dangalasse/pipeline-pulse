@@ -118,7 +118,8 @@ POST /api/demo-ai-review
     id: 'staging',
     labelPt: 'Staging',
     labelEn: 'Staging',
-    explainPt: 'Push em main sobe o Worker de staging e faz smoke em /api/health.',
+    explainPt:
+      'Push em main sobe o Worker de staging e faz smoke em /api/health.',
     explainEn: 'Push to main ships the staging Worker and smokes /api/health.',
     yaml: `# deploy.yml — staging job
 deploy-staging:
@@ -131,8 +132,10 @@ deploy-staging:
     id: 'prod',
     labelPt: 'Produção',
     labelEn: 'Prod',
-    explainPt: 'Tag v* entra no environment production (protegido) e faz o smoke final.',
-    explainEn: 'A v* tag hits the protected production environment and final smoke.',
+    explainPt:
+      'Tag v* entra no environment production (protegido) e faz o smoke final.',
+    explainEn:
+      'A v* tag hits the protected production environment and final smoke.',
     yaml: `deploy-production:
   if: startsWith(github.ref, 'refs/tags/v')
   environment: production`,

@@ -9,11 +9,11 @@ import {
   mintServiceAuth,
 } from './demo-gate';
 import {
+  TokenMissingError,
   createDemoRun,
   getDemoRun,
   getLatestLiveDemoRun,
   serializeDemoRun,
-  TokenMissingError,
 } from './demo-run';
 
 export interface Env {
@@ -123,7 +123,10 @@ app.post('/api/demo-ticket', async (c) => {
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'invalid_json', message: 'Expected JSON body.' }, 400);
+    return c.json(
+      { error: 'invalid_json', message: 'Expected JSON body.' },
+      400,
+    );
   }
   try {
     const issued = await issueTicket(
@@ -176,7 +179,10 @@ app.post('/api/demo-run', async (c) => {
 });
 
 app.get('/api/demo-run/:id', async (c) => {
-  const record = await getDemoRun(c.env.GITHUB_TOKEN?.trim(), c.req.param('id'));
+  const record = await getDemoRun(
+    c.env.GITHUB_TOKEN?.trim(),
+    c.req.param('id'),
+  );
   if (!record) {
     return c.json({ error: 'not_found', message: 'Demo run not found.' }, 404);
   }
