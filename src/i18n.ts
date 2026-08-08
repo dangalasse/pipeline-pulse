@@ -39,6 +39,8 @@ export interface UiCopy {
   openGithubRun: string;
   rateLimited: string;
   demoUnavailable: string;
+  humanCheck: string;
+  lastRunLabel: string;
   nodeDetailClose: string;
   workflowYaml: string;
   switchLanguage: string;
@@ -58,7 +60,7 @@ export interface UiCopy {
 const PT: UiCopy = {
   eyebrow: 'galasse · vitrine devops',
   title: 'Pipeline Pulse',
-  lede: 'Meta-dashboard ao vivo de uma esteira GitHub Actions completa — Cloudflare Workers na borda.',
+  lede: 'Esta página é o painel de uma esteira real: Actions no GitHub, Worker na Cloudflare. Clica num nó para ver o que corre — lint, security audit, testes, build.',
   viewActions: 'Ver Actions',
   repository: 'Repositório',
   thisDeploy: 'Este deploy',
@@ -76,29 +78,31 @@ const PT: UiCopy = {
   aiReviewing: 'A pedir análise ao Edge Labs…',
   aiReviewTitle: 'Análise IA do erro',
   openGithubRun: 'Abrir run no GitHub',
-  rateLimited: 'Aguarde ~1 minuto entre demos.',
+  rateLimited: 'Limite da demo — vê o último run abaixo (1/IP/15min, 8/dia).',
   demoUnavailable:
-    'Demo ao vivo indisponível — configure GITHUB_TOKEN no Worker.',
+    'Dispatch precisa de GITHUB_TOKEN (actions:write) atrás do Demo Gate. O último run real continua visível acima.',
+  humanCheck: 'Verificação humana',
+  lastRunLabel: 'Último run real',
   nodeDetailClose: 'Fechar',
   workflowYaml: 'Trecho do workflow',
   switchLanguage: 'Idioma',
   localePt: 'PT-BR',
   localeEn: 'ENG-US',
-  footerSecrets: 'Secrets OIDC · Ambientes staging / production',
-  probingEdge: 'sondando edge…',
+  footerSecrets: 'Secrets via OIDC · ambientes staging / production',
+  probingEdge: 'a checar o edge…',
   edgeOk: 'edge ok',
-  statusIdle: 'ocioso',
-  statusPending: 'pendente',
+  statusIdle: 'parado',
+  statusPending: 'na fila',
   statusRunning: 'a correr',
   statusSuccess: 'ok',
   statusFailure: 'falhou',
-  statusSkipped: 'ignorado',
+  statusSkipped: 'saltado',
 };
 
 const EN: UiCopy = {
   eyebrow: 'galasse · devops showcase',
   title: 'Pipeline Pulse',
-  lede: 'Live meta-dashboard for a full GitHub Actions conveyor — Cloudflare Workers at the edge.',
+  lede: 'This page is the dashboard for a real conveyor: GitHub Actions, Cloudflare Worker. Click a node to see what runs — lint, security audit, tests, build.',
   viewActions: 'View Actions',
   repository: 'Repository',
   thisDeploy: 'This deploy',
@@ -116,16 +120,18 @@ const EN: UiCopy = {
   aiReviewing: 'Requesting Edge Labs analysis…',
   aiReviewTitle: 'AI error analysis',
   openGithubRun: 'Open run on GitHub',
-  rateLimited: 'Wait ~1 minute between demos.',
+  rateLimited: 'Demo limit — see the last run below (1/IP/15min, 8/day).',
   demoUnavailable:
-    'Live demo unavailable — configure GITHUB_TOKEN on the Worker.',
+    'Dispatch needs GITHUB_TOKEN (actions:write) behind the Demo Gate. The last real run stays visible above.',
+  humanCheck: 'Human check',
+  lastRunLabel: 'Last real run',
   nodeDetailClose: 'Close',
   workflowYaml: 'Workflow snippet',
   switchLanguage: 'Language',
   localePt: 'PT-BR',
   localeEn: 'ENG-US',
-  footerSecrets: 'OIDC-ready secrets · Environments staging / production',
-  probingEdge: 'probing edge…',
+  footerSecrets: 'OIDC-ready secrets · staging / production environments',
+  probingEdge: 'checking edge…',
   edgeOk: 'edge ok',
   statusIdle: 'idle',
   statusPending: 'pending',

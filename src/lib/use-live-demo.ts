@@ -10,8 +10,9 @@ export interface DemoRunState {
     | 'in_progress'
     | 'completed'
     | 'failure'
-    | 'cancelled';
-  nodeStatuses: Record<NodeId, NodeStatus>;
+    | 'cancelled'
+    | 'idle';
+  nodeStatuses: Record<NodeId, NodeStatus> | null;
   errorMessage: string | null;
 }
 
@@ -32,9 +33,36 @@ interface UseLiveDemoOptions {
     demoUnavailable: string;
     rateLimited: string;
   };
+  getTurnstileToken: () => string | null;
+  resetTurnstile: () => void;
 }
 
-export function useLiveDemo({ locale, t }: UseLiveDemoOptions) {
+async function mintTicket(
+  aud: string,
+  turnstileToken: string,
+): Promise<{ ticket: string } | { error: string }> {
+  const res = await fetch('/api/demo-ticket', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ turnstileToken, aud }),
+  });
+  const data = (await res.json()) as {
+    ticket?: string;
+    message?: string;
+    error?: string;
+  };
+  if (!res.ok || !data.ticket) {
+    return { error: data.message ?? data.error ?? `HTTP ${res.status}` };
+  }
+  return { ticket: data.ticket };
+}
+
+export function useLiveDemo({
+  locale,
+  t,
+  getTurnstileToken,
+  resetTurnstile,
+}: UseLiveDemoOptions) {
   const [demo, setDemo] = useState<DemoRunState | null>(null);
   const [nodeStatuses, setNodeStatuses] = useState<Record<
     NodeId,
@@ -54,6 +82,25 @@ export function useLiveDemo({ locale, t }: UseLiveDemoOptions) {
   }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/demo-run/latest');
+        if (!res.ok) return;
+        const data = (await res.json()) as DemoRunState;
+        if (cancelled || !data.id) return;
+        setDemo(data);
+        setNodeStatuses(data.nodeStatuses);
+      } catch {
+        /* read-only best effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pollRun = useCallback(
     (id: string) => {
@@ -88,7 +135,28 @@ export function useLiveDemo({ locale, t }: UseLiveDemoOptions) {
     stopPolling();
 
     try {
-      const res = await fetch('/api/demo-run', { method: 'POST' });
+      const token = getTurnstileToken();
+      if (!token) {
+        setError(
+          locale === 'en-US'
+            ? 'Complete the human check first.'
+            : 'Complete a verificação humana primeiro.',
+        );
+        setLoading(false);
+        return;
+      }
+      const ticket = await mintTicket('pipeline.dispatch', token);
+      resetTurnstile();
+      if ('error' in ticket) {
+        setError(ticket.error);
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch('/api/demo-run', {
+        method: 'POST',
+        headers: { 'X-Demo-Ticket': ticket.ticket },
+      });
       const data = (await res.json()) as DemoRunState & {
         error?: string;
         message?: string;
@@ -100,7 +168,7 @@ export function useLiveDemo({ locale, t }: UseLiveDemoOptions) {
         return;
       }
       if (res.status === 429) {
-        setError(t.rateLimited);
+        setError(data.message ?? t.rateLimited);
         setLoading(false);
         return;
       }
@@ -117,22 +185,50 @@ export function useLiveDemo({ locale, t }: UseLiveDemoOptions) {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
     }
-  }, [pollRun, stopPolling, t.demoUnavailable, t.rateLimited]);
+  }, [
+    getTurnstileToken,
+    locale,
+    pollRun,
+    resetTurnstile,
+    stopPolling,
+    t.demoUnavailable,
+    t.rateLimited,
+  ]);
 
   const requestAiReview = useCallback(async () => {
     if (!demo) return;
     setAiLoading(true);
     setAiReview(null);
 
-    const failedNodes = Object.entries(demo.nodeStatuses)
+    const failedNodes = Object.entries(demo.nodeStatuses ?? {})
       .filter(([, s]) => s === 'failure')
       .map(([id]) => id)
       .join(', ');
 
     try {
+      const token = getTurnstileToken();
+      if (!token) {
+        setAiReview({
+          error:
+            locale === 'en-US'
+              ? 'Complete the human check first.'
+              : 'Complete a verificação humana primeiro.',
+        });
+        return;
+      }
+      const ticket = await mintTicket('edge.analyze', token);
+      resetTurnstile();
+      if ('error' in ticket) {
+        setAiReview({ error: ticket.error });
+        return;
+      }
+
       const res = await fetch('/api/demo-ai-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Demo-Ticket': ticket.ticket,
+        },
         body: JSON.stringify({
           message:
             demo.errorMessage ??
@@ -150,7 +246,7 @@ export function useLiveDemo({ locale, t }: UseLiveDemoOptions) {
     } finally {
       setAiLoading(false);
     }
-  }, [demo, locale]);
+  }, [demo, getTurnstileToken, locale, resetTurnstile]);
 
   return {
     demo,

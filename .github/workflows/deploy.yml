@@ -31,9 +31,10 @@ jobs:
             echo "CLOUDFLARE_API_TOKEN is set — wrangler jobs will run."
           else
             echo "has_token=false" >> "$GITHUB_OUTPUT"
-            echo "CLOUDFLARE_API_TOKEN not set — wrangler jobs skipped."
-            echo "Create token (Edit Cloudflare Workers) then:"
+            echo "::error::CLOUDFLARE_API_TOKEN missing — staging/prod deploy cannot run."
+            echo "Create an API token (Workers Edit) then:"
             echo "  gh secret set CLOUDFLARE_API_TOKEN -R dangalasse/pipeline-pulse"
+            exit 1
           fi
 
   deploy-staging:

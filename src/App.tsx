@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeployMeta } from '../shared/deploy-meta';
 import { isLiveSha, shortSha } from '../shared/deploy-meta';
 import { LocaleToggle } from './components/LocaleToggle';
@@ -10,6 +10,24 @@ type LoadState =
   | { status: 'loading' }
   | { status: 'ok'; data: DeployMeta }
   | { status: 'error'; message: string };
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        el: HTMLElement,
+        opts: {
+          sitekey: string;
+          callback: (token: string) => void;
+          'expired-callback'?: () => void;
+          'error-callback'?: () => void;
+          theme?: string;
+        },
+      ) => string;
+      reset: (id: string) => void;
+    };
+  }
+}
 
 function buildTimeMeta(): DeployMeta {
   return {
@@ -27,6 +45,22 @@ function buildTimeMeta(): DeployMeta {
 export default function App() {
   const { locale, t, toggleHref, otherLabel, currentLabel } = useLocale();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const turnstileTokenRef = useRef<string | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+
+  const getTurnstileToken = useCallback(
+    () => turnstileTokenRef.current,
+    [],
+  );
+  const resetTurnstile = useCallback(() => {
+    turnstileTokenRef.current = null;
+    if (window.turnstile && widgetIdRef.current) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  }, []);
+
   const {
     demo,
     nodeStatuses,
@@ -36,7 +70,7 @@ export default function App() {
     aiLoading,
     startDemo,
     requestAiReview,
-  } = useLiveDemo({ locale, t });
+  } = useLiveDemo({ locale, t, getTurnstileToken, resetTurnstile });
 
   useEffect(() => {
     let cancelled = false;
@@ -59,10 +93,78 @@ export default function App() {
         });
       });
 
+    fetch('/api/demo-config')
+      .then(async (res) => res.json())
+      .then((cfg: { turnstileSiteKey?: string | null }) => {
+        if (!cancelled && cfg.turnstileSiteKey) {
+          setSiteKey(cfg.turnstileSiteKey);
+        }
+      })
+      .catch(() => undefined);
+
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!siteKey || !hostRef.current) return;
+    let cancelled = false;
+
+    const mount = () => {
+      if (cancelled || !window.turnstile || !hostRef.current) return;
+      if (widgetIdRef.current) return;
+      widgetIdRef.current = window.turnstile.render(hostRef.current, {
+        sitekey: siteKey,
+        theme: 'dark',
+        callback: (token) => {
+          turnstileTokenRef.current = token;
+        },
+        'expired-callback': () => {
+          turnstileTokenRef.current = null;
+        },
+        'error-callback': () => {
+          turnstileTokenRef.current = null;
+        },
+      });
+    };
+
+    if (window.turnstile) {
+      mount();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const existing = document.querySelector(
+      'script[data-turnstile]',
+    ) as HTMLScriptElement | null;
+    if (!existing) {
+      const s = document.createElement('script');
+      s.src =
+        'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.defer = true;
+      s.dataset.turnstile = '1';
+      s.onload = () => mount();
+      document.head.appendChild(s);
+    } else {
+      const id = window.setInterval(() => {
+        if (window.turnstile) {
+          window.clearInterval(id);
+          mount();
+        }
+      }, 200);
+      return () => {
+        cancelled = true;
+        window.clearInterval(id);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [siteKey]);
 
   const meta = state.status === 'ok' ? state.data : buildTimeMeta();
   const sha = shortSha(meta.gitSha);
@@ -118,9 +220,13 @@ export default function App() {
             {t.repository}
           </a>
         </div>
+        <div className="turnstile-wrap" aria-label={t.humanCheck}>
+          <div ref={hostRef} />
+        </div>
         {demoError ? <p className="demo-error">{demoError}</p> : null}
         {demo?.githubRunUrl ? (
           <p className="demo-run-link">
+            <span className="muted">{t.lastRunLabel}: </span>
             <a href={demo.githubRunUrl} target="_blank" rel="noreferrer">
               {t.openGithubRun} →
             </a>

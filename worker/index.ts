@@ -2,20 +2,33 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { DeployMeta } from '../shared/deploy-meta';
 import {
-  RateLimitError,
+  DemoGateError,
+  clientIp,
+  enforceTicketAndQuota,
+  issueTicket,
+  mintServiceAuth,
+} from './demo-gate';
+import {
   createDemoRun,
   getDemoRun,
+  getLatestLiveDemoRun,
   serializeDemoRun,
+  TokenMissingError,
 } from './demo-run';
 
 export interface Env {
   ASSETS: Fetcher;
+  DEMO_GATE_KV: KVNamespace;
   DEPLOY_ENV: string;
   GIT_SHA: string;
   BUILD_TIME: string;
   GITHUB_RUN_URL: string;
   GITHUB_REPO: string;
+  TURNSTILE_SITE_KEY: string;
+  /** Optional — fine-grained PAT or GitHub App installation token behind the gate */
   GITHUB_TOKEN?: string;
+  TURNSTILE_SECRET?: string;
+  DEMO_TICKET_SECRET?: string;
 }
 
 const EDGE_ANALYZE_URL = 'https://edge.galasse.dev/analyze-error';
@@ -23,6 +36,7 @@ const EDGE_ANALYZE_URL = 'https://edge.galasse.dev/analyze-error';
 const CORS_ORIGINS = [
   'https://pipeline.galasse.dev',
   'https://staging.pipeline.galasse.dev',
+  'https://portfolio.galasse.dev',
   'http://localhost:5173',
   'http://localhost:8787',
   'http://127.0.0.1:5173',
@@ -35,18 +49,35 @@ app.use(
   '/api/*',
   cors({
     origin: (origin) =>
-      !origin || CORS_ORIGINS.includes(origin) ? origin : '',
+      !origin || CORS_ORIGINS.includes(origin) ? origin || '*' : '',
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'X-Demo-Ticket'],
   }),
 );
+
+function gateEnv(env: Env) {
+  return {
+    TURNSTILE_SECRET: env.TURNSTILE_SECRET,
+    DEMO_TICKET_SECRET: env.DEMO_TICKET_SECRET,
+    DEMO_GATE_KV: env.DEMO_GATE_KV,
+  };
+}
 
 app.get('/api/health', (c) =>
   c.json({
     ok: true,
     service: 'pipeline-pulse',
     env: c.env.DEPLOY_ENV,
+    gate: Boolean(c.env.TURNSTILE_SECRET && c.env.DEMO_TICKET_SECRET),
     ts: new Date().toISOString(),
+  }),
+);
+
+app.get('/api/demo-config', (c) =>
+  c.json({
+    turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || null,
+    gateReady: Boolean(c.env.TURNSTILE_SECRET && c.env.DEMO_TICKET_SECRET),
+    dispatchReady: Boolean(c.env.GITHUB_TOKEN?.trim()),
   }),
 );
 
@@ -64,6 +95,52 @@ app.get('/api/deploy-meta', (c) => {
   return c.json(meta);
 });
 
+/** Last real live-demo.yml run — public GitHub read, no secret. */
+app.get('/api/demo-run/latest', async (c) => {
+  try {
+    const record = await getLatestLiveDemoRun(c.env.GITHUB_TOKEN?.trim());
+    if (!record) {
+      return c.json({
+        id: null,
+        githubRunId: null,
+        githubRunUrl: null,
+        workflowStatus: 'idle',
+        nodeStatuses: null,
+        createdAt: null,
+        errorMessage: null,
+        message: 'No live-demo runs yet.',
+      });
+    }
+    return c.json(serializeDemoRun(record));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: 'latest_failed', message }, 502);
+  }
+});
+
+app.post('/api/demo-ticket', async (c) => {
+  let body: { turnstileToken?: string; aud?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'invalid_json', message: 'Expected JSON body.' }, 400);
+  }
+  try {
+    const issued = await issueTicket(
+      gateEnv(c.env),
+      body.aud ?? 'pipeline.dispatch',
+      clientIp(c.req.raw),
+      body.turnstileToken ?? '',
+    );
+    return c.json(issued);
+  } catch (err) {
+    if (err instanceof DemoGateError) {
+      return c.json({ error: err.code, message: err.message }, err.status);
+    }
+    return c.json({ error: 'ticket_failed', message: String(err) }, 500);
+  }
+});
+
 app.post('/api/demo-run', async (c) => {
   const token = c.env.GITHUB_TOKEN?.trim();
   if (!token) {
@@ -71,18 +148,27 @@ app.post('/api/demo-run', async (c) => {
       {
         error: 'unavailable',
         message:
-          'Live demo requires GITHUB_TOKEN Worker secret. See README for setup.',
+          'Live dispatch requires GITHUB_TOKEN (fine-grained actions:write) behind the demo gate. Last run is still visible above.',
       },
       503,
     );
   }
 
   try {
+    await enforceTicketAndQuota(
+      gateEnv(c.env),
+      c.req.raw,
+      'pipeline.dispatch',
+      c.req.header('X-Demo-Ticket'),
+    );
     const record = await createDemoRun(token);
     return c.json(serializeDemoRun(record), 202);
   } catch (err) {
-    if (err instanceof RateLimitError) {
-      return c.json({ error: 'rate_limited', message: err.message }, 429);
+    if (err instanceof DemoGateError) {
+      return c.json({ error: err.code, message: err.message }, err.status);
+    }
+    if (err instanceof TokenMissingError) {
+      return c.json({ error: 'unavailable', message: err.message }, 503);
     }
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: 'dispatch_failed', message }, 502);
@@ -90,19 +176,7 @@ app.post('/api/demo-run', async (c) => {
 });
 
 app.get('/api/demo-run/:id', async (c) => {
-  const token = c.env.GITHUB_TOKEN?.trim();
-  if (!token) {
-    return c.json(
-      {
-        error: 'unavailable',
-        message:
-          'Live demo requires GITHUB_TOKEN Worker secret. See README for setup.',
-      },
-      503,
-    );
-  }
-
-  const record = await getDemoRun(token, c.req.param('id'));
+  const record = await getDemoRun(c.env.GITHUB_TOKEN?.trim(), c.req.param('id'));
   if (!record) {
     return c.json({ error: 'not_found', message: 'Demo run not found.' }, 404);
   }
@@ -110,6 +184,20 @@ app.get('/api/demo-run/:id', async (c) => {
 });
 
 app.post('/api/demo-ai-review', async (c) => {
+  try {
+    await enforceTicketAndQuota(
+      gateEnv(c.env),
+      c.req.raw,
+      'edge.analyze',
+      c.req.header('X-Demo-Ticket'),
+    );
+  } catch (err) {
+    if (err instanceof DemoGateError) {
+      return c.json({ error: err.code, message: err.message }, err.status);
+    }
+    return c.json({ error: 'gate_error', message: String(err) }, 500);
+  }
+
   let body: { message?: string; context?: string; locale?: string };
   try {
     body = await c.req.json<{
@@ -131,9 +219,24 @@ app.post('/api/demo-ai-review', async (c) => {
     );
   }
 
+  const secret = c.env.DEMO_TICKET_SECRET;
+  if (!secret) {
+    return c.json(
+      { error: 'gate_unconfigured', message: 'DEMO_TICKET_SECRET missing.' },
+      503,
+    );
+  }
+
+  const auth = await mintServiceAuth(secret, 'pipeline-pulse');
+
   const edgeRes = await fetch(EDGE_ANALYZE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Demo-Service': 'pipeline-pulse',
+      'X-Demo-Service-Ts': auth.ts,
+      'X-Demo-Service-Sig': auth.sig,
+    },
     body: JSON.stringify({
       message: body.message,
       context: body.context ?? 'Pipeline Pulse live demo failure',
@@ -160,6 +263,93 @@ app.post('/api/demo-ai-review', async (c) => {
   return c.json(payload, edgeRes.ok ? 200 : 502);
 });
 
+/** WHY: bait paths for scanners — playful, no secrets, no privilege path. */
+const HONEYPOT_PATHS = new Set([
+  '/.env',
+  '/.env.local',
+  '/.git/config',
+  '/wp-admin',
+  '/wp-login.php',
+  '/admin',
+  '/admin/login',
+  '/api/v1/secrets',
+  '/api/secrets',
+  '/phpmyadmin',
+  '/server-status',
+  '/actuator/env',
+]);
+
+const HONEYPOT_REPLIES = [
+  { pt: 'tenta mais', en: 'try again' },
+  { pt: 'ainda não', en: 'not yet' },
+  { pt: 'quase lá', en: 'almost' },
+  { pt: 'boa tentativa', en: 'nice try' },
+];
+
+function honeypotReply(pathname: string): Response {
+  const pick =
+    HONEYPOT_REPLIES[Math.abs(hashStr(pathname)) % HONEYPOT_REPLIES.length]!;
+  return Response.json(
+    {
+      ok: false,
+      hint: pick.pt,
+      hint_en: pick.en,
+      note: 'Fourth wall: scanners get a wink, not a foothold.',
+    },
+    {
+      status: 404,
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    },
+  );
+}
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+function guessMime(pathname: string): string | null {
+  const path = pathname === '/' || pathname === '' ? '/index.html' : pathname;
+  const lower = path.toLowerCase();
+  if (lower.endsWith('.html') || lower.endsWith('/'))
+    return 'text/html; charset=utf-8';
+  if (lower.endsWith('.js') || lower.endsWith('.mjs'))
+    return 'text/javascript; charset=utf-8';
+  if (lower.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (lower.endsWith('.svg')) return 'image/svg+xml';
+  if (lower.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (lower.endsWith('.woff2')) return 'font/woff2';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.ico')) return 'image/x-icon';
+  if (!lower.includes('.')) return 'text/html; charset=utf-8';
+  return null;
+}
+
+async function serveAssets(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const res = await env.ASSETS.fetch(request);
+  const ct = res.headers.get('content-type') ?? '';
+  if (ct && !ct.includes('application/octet-stream')) {
+    return res;
+  }
+  const guessed = guessMime(url.pathname);
+  if (!guessed) {
+    return res;
+  }
+  const headers = new Headers(res.headers);
+  headers.set('Content-Type', guessed);
+  headers.set('X-Content-Type-Options', 'nosniff');
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(
     request: Request,
@@ -167,9 +357,13 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    if (HONEYPOT_PATHS.has(path) || HONEYPOT_PATHS.has(url.pathname)) {
+      return honeypotReply(path);
+    }
     if (url.pathname.startsWith('/api/')) {
       return app.fetch(request, env, ctx);
     }
-    return env.ASSETS.fetch(request);
+    return serveAssets(request, env);
   },
 };

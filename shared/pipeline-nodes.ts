@@ -1,6 +1,7 @@
 export type NodeId =
   | 'push'
   | 'ci'
+  | 'security'
   | 'test'
   | 'ai-review'
   | 'preview'
@@ -48,8 +49,10 @@ on:
     labelPt: 'CI',
     labelEn: 'CI',
     jobName: 'CI',
-    explainPt: 'Biome lint + typecheck TypeScript (app + worker).',
-    explainEn: 'Biome lint + TypeScript typecheck (app + worker).',
+    explainPt:
+      'Lint com Biome e typecheck TypeScript no app e no Worker. É o primeiro freio antes de gastar tempo em teste.',
+    explainEn:
+      'Biome lint and TypeScript typecheck for the app and Worker. First brake before spending time on tests.',
     yaml: `- name: Lint (Biome)
   run: npm run lint
 
@@ -57,13 +60,29 @@ on:
   run: npm run typecheck`,
   },
   {
+    id: 'security',
+    labelPt: 'Security',
+    labelEn: 'Security',
+    jobName: 'Security',
+    explainPt:
+      'npm audit (nível high+) nas dependências. Gates mais pesados (e2e Playwright, UFW, métricas 401) ficam no TOTE — aqui é a fatia que cabe neste repo.',
+    explainEn:
+      'npm audit (high+) on dependencies. Heavier gates (Playwright e2e, UFW, 401 metrics) live in TOTE — this is the slice that fits this repo.',
+    yaml: `- name: Dependency audit (high+)
+  run: npm audit --audit-level=high
+
+# TOTE (separate repo): scripts/security-gates.sh + Playwright e2e`,
+  },
+  {
     id: 'test',
     labelPt: 'Testes',
     labelEn: 'Test',
     jobName: 'Test',
-    explainPt: 'Vitest — contratos partilhados e lógica pura.',
-    explainEn: 'Vitest — shared contracts and pure logic.',
-    yaml: `- name: Unit tests
+    explainPt:
+      'Vitest nos contratos partilhados e na lógica pura. Não é e2e de browser — isso está no TOTE.',
+    explainEn:
+      'Vitest on shared contracts and pure logic. Not browser e2e — that lives in TOTE.',
+    yaml: `- name: Unit tests (Vitest)
   run: npm test`,
   },
   {
@@ -72,9 +91,9 @@ on:
     labelEn: 'AI Review',
     jobName: 'AI Review',
     explainPt:
-      'Em falha, a UI encaminha logs ao Edge Labs (POST /analyze-error) para coaching SRE.',
+      'Se algo falha, a UI manda o log para o Edge Labs (POST /analyze-error) e pede um coaching SRE.',
     explainEn:
-      'On failure, the UI forwards logs to Edge Labs (POST /analyze-error) for SRE coaching.',
+      'On failure, the UI sends the log to Edge Labs (POST /analyze-error) for SRE coaching.',
     yaml: `# UI → Worker → Edge Labs
 POST /api/demo-ai-review
   → https://edge.galasse.dev/analyze-error
@@ -86,9 +105,9 @@ POST /api/demo-ai-review
     labelEn: 'Preview',
     jobName: 'Build',
     explainPt:
-      'PR deploya Worker preview + comenta URL. Live demo para no build (sem deploy).',
+      'No PR, sobe um Worker de preview e comenta a URL. O botão “demo ao vivo” desta página para no build — não faz deploy.',
     explainEn:
-      'PR deploys a preview Worker + comments URL. Live demo stops at build (no deploy).',
+      'On a PR, a preview Worker goes up and the URL is commented. The “live demo” button on this page stops at build — no deploy.',
     yaml: `# preview.yml (PR only)
 - name: Deploy Workers preview
   uses: cloudflare/wrangler-action@v3
@@ -99,8 +118,8 @@ POST /api/demo-ai-review
     id: 'staging',
     labelPt: 'Staging',
     labelEn: 'Staging',
-    explainPt: 'Push main → staging Worker + smoke /api/health.',
-    explainEn: 'Push main → staging Worker + smoke /api/health.',
+    explainPt: 'Push em main sobe o Worker de staging e faz smoke em /api/health.',
+    explainEn: 'Push to main ships the staging Worker and smokes /api/health.',
     yaml: `# deploy.yml — staging job
 deploy-staging:
   if: github.ref == 'refs/heads/main'
@@ -112,8 +131,8 @@ deploy-staging:
     id: 'prod',
     labelPt: 'Produção',
     labelEn: 'Prod',
-    explainPt: 'Tag v* → ambiente production protegido + smoke final.',
-    explainEn: 'Tag v* → protected production environment + final smoke.',
+    explainPt: 'Tag v* entra no environment production (protegido) e faz o smoke final.',
+    explainEn: 'A v* tag hits the protected production environment and final smoke.',
     yaml: `deploy-production:
   if: startsWith(github.ref, 'refs/tags/v')
   environment: production`,

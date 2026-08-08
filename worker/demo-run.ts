@@ -18,11 +18,9 @@ export interface DemoRunRecord {
 
 const GITHUB_REPO = 'dangalasse/pipeline-pulse';
 const WORKFLOW_FILE = 'live-demo.yml';
-const RATE_LIMIT_MS = 60_000;
 const RUN_TTL_MS = 30 * 60_000;
 
 const demoRuns = new Map<string, DemoRunRecord>();
-let lastDispatchAt = 0;
 
 const JOB_TO_NODE = new Map<string, NodeId>(
   PIPELINE_NODES.filter((n) => n.jobName).map((n) => [
@@ -42,13 +40,6 @@ function pruneOldRuns(): void {
   const cutoff = Date.now() - RUN_TTL_MS;
   for (const [id, run] of demoRuns) {
     if (run.createdAt < cutoff) demoRuns.delete(id);
-  }
-}
-
-export class RateLimitError extends Error {
-  constructor() {
-    super('Rate limit: wait ~1 minute between demo runs.');
-    this.name = 'RateLimitError';
   }
 }
 
@@ -78,36 +69,46 @@ function applyGithubJobs(
 ): void {
   record.nodeStatuses.push = 'success';
 
+  const seenJobNodes = new Set<NodeId>();
   for (const job of jobs) {
     const nodeId = JOB_TO_NODE.get(job.name);
     if (nodeId) {
+      seenJobNodes.add(nodeId);
       record.nodeStatuses[nodeId] = mapJobStatus(job.status, job.conclusion);
     }
   }
 
-  for (const node of PIPELINE_NODES) {
-    if (node.id === 'push') continue;
-    if (node.jobName) continue;
-    if (record.workflowStatus === 'completed') {
-      record.nodeStatuses[node.id] = 'skipped';
+  if (record.workflowStatus === 'completed') {
+    for (const node of PIPELINE_NODES) {
+      if (node.id === 'push') continue;
+      // Deploy stages (no jobName) are out of scope for live-demo → skipped.
+      // Canvas nodes with jobName that did not appear in this run → skipped (not "idle/parado").
+      if (!node.jobName || !seenJobNodes.has(node.id)) {
+        if (record.nodeStatuses[node.id] === 'idle') {
+          record.nodeStatuses[node.id] = 'skipped';
+        }
+      }
     }
   }
 }
 
 async function githubFetch(
-  token: string,
+  token: string | undefined,
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'pipeline-pulse-worker',
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   return fetch(`https://api.github.com${path}`, {
     ...init,
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      Authorization: `Bearer ${token}`,
-      'User-Agent': 'pipeline-pulse-worker',
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 }
 
@@ -141,7 +142,7 @@ async function findLatestDispatchRun(
 }
 
 async function refreshRunFromGithub(
-  token: string,
+  token: string | undefined,
   record: DemoRunRecord,
 ): Promise<void> {
   if (!record.githubRunId) return;
@@ -182,7 +183,6 @@ export async function createDemoRun(token: string): Promise<DemoRunRecord> {
   pruneOldRuns();
 
   if (!token) throw new TokenMissingError();
-  if (Date.now() - lastDispatchAt < RATE_LIMIT_MS) throw new RateLimitError();
 
   const id = crypto.randomUUID();
   const createdAt = Date.now();
@@ -215,8 +215,6 @@ export async function createDemoRun(token: string): Promise<DemoRunRecord> {
     throw new Error(record.errorMessage);
   }
 
-  lastDispatchAt = Date.now();
-
   const found = await findLatestDispatchRun(token, createdAt);
   if (found) {
     record.githubRunId = found.id;
@@ -228,16 +226,74 @@ export async function createDemoRun(token: string): Promise<DemoRunRecord> {
   return record;
 }
 
+/** Public (or lightly-authed) read of the latest live-demo.yml run. */
+export async function getLatestLiveDemoRun(
+  token?: string,
+): Promise<DemoRunRecord | null> {
+  const res = await githubFetch(
+    token,
+    `/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=1`,
+  );
+  if (!res.ok) {
+    throw new Error(`GitHub runs list failed (${res.status})`);
+  }
+  const body = (await res.json()) as {
+    workflow_runs: Array<{
+      id: number;
+      html_url: string;
+      status: string;
+      conclusion: string | null;
+      created_at: string;
+    }>;
+  };
+  const run = body.workflow_runs[0];
+  if (!run) return null;
+
+  let workflowStatus: DemoRunRecord['workflowStatus'] = 'in_progress';
+  if (run.status === 'completed') {
+    workflowStatus = run.conclusion === 'success' ? 'completed' : 'failure';
+  } else if (run.status === 'queued') {
+    workflowStatus = 'queued';
+  }
+
+  const record: DemoRunRecord = {
+    id: `gh-${run.id}`,
+    githubRunId: run.id,
+    githubRunUrl: run.html_url,
+    workflowStatus,
+    nodeStatuses: idleNodeMap(),
+    createdAt: new Date(run.created_at).getTime(),
+    errorMessage: null,
+  };
+  record.nodeStatuses.push = 'success';
+  await refreshRunFromGithub(token, record);
+  demoRuns.set(record.id, record);
+  return record;
+}
+
 export async function getDemoRun(
-  token: string,
+  token: string | undefined,
   id: string,
 ): Promise<DemoRunRecord | null> {
   pruneOldRuns();
-  const record = demoRuns.get(id);
-  if (!record) return null;
-  if (token) {
-    await refreshRunFromGithub(token, record);
+  let record = demoRuns.get(id);
+  if (!record && id.startsWith('gh-')) {
+    const githubRunId = Number(id.slice(3));
+    if (Number.isFinite(githubRunId)) {
+      record = {
+        id,
+        githubRunId,
+        githubRunUrl: null,
+        workflowStatus: 'in_progress',
+        nodeStatuses: idleNodeMap(),
+        createdAt: Date.now(),
+        errorMessage: null,
+      };
+      demoRuns.set(id, record);
+    }
   }
+  if (!record) return null;
+  await refreshRunFromGithub(token, record);
   return record;
 }
 

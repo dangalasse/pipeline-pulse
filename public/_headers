@@ -1,0 +1,11 @@
+/
+  Content-Type: text/html; charset=utf-8
+
+/*.html
+  Content-Type: text/html; charset=utf-8
+
+/assets/*
+  X-Content-Type-Options: nosniff
+
+/favicon.svg
+  Content-Type: image/svg+xml

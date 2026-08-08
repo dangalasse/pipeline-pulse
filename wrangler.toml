@@ -7,6 +7,12 @@ workers_dev = true
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+# Serve /api/* via Worker first so assets never steal API routes.
+run_worker_first = ["/api/*"]
+
+[[kv_namespaces]]
+binding = "DEMO_GATE_KV"
+id = "7c26464ce85340e981359bfc0a22deba"
 
 [vars]
 DEPLOY_ENV = "production"
@@ -14,11 +20,16 @@ GIT_SHA = "local"
 BUILD_TIME = "local"
 GITHUB_RUN_URL = ""
 GITHUB_REPO = "dangalasse/pipeline-pulse"
-# Secret (not in vars): GITHUB_TOKEN — wrangler secret put GITHUB_TOKEN
+TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
+# Secrets: GITHUB_TOKEN, TURNSTILE_SECRET, DEMO_TICKET_SECRET
 
 [env.staging]
 name = "pipeline-pulse-staging"
 workers_dev = true
+
+[[env.staging.kv_namespaces]]
+binding = "DEMO_GATE_KV"
+id = "7c26464ce85340e981359bfc0a22deba"
 
 [env.staging.vars]
 DEPLOY_ENV = "staging"
@@ -26,10 +37,15 @@ GIT_SHA = "local"
 BUILD_TIME = "local"
 GITHUB_RUN_URL = ""
 GITHUB_REPO = "dangalasse/pipeline-pulse"
+TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
 
 [env.preview]
 name = "pipeline-pulse-preview"
 workers_dev = true
+
+[[env.preview.kv_namespaces]]
+binding = "DEMO_GATE_KV"
+id = "7c26464ce85340e981359bfc0a22deba"
 
 [env.preview.vars]
 DEPLOY_ENV = "preview"
@@ -37,3 +53,4 @@ GIT_SHA = "local"
 BUILD_TIME = "local"
 GITHUB_RUN_URL = ""
 GITHUB_REPO = "dangalasse/pipeline-pulse"
+TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
