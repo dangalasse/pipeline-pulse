@@ -31,38 +31,3 @@ jobs:
           accountId: '4483b58d6fc9d89f06c521fd83a9a963'
           # keep-vars: preserve dashboard secrets (TURNSTILE/DEMO_TICKET) across deploys
           command: deploy --keep-vars
-
-      # WHY: wrangler deploy after a script-API edit sometimes omits [[kv_namespaces]]
-      # from the published bindings list; re-assert DEMO_GATE_KV explicitly.
-      - name: Ensure DEMO_GATE_KV binding
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: '4483b58d6fc9d89f06c521fd83a9a963'
-          KV_ID: '58c74766fe084e3bbd8e8a8abf9bad9d'
-        run: |
-          set -euo pipefail
-          BOUNDARY="cfbound$RANDOM"
-          META=$(cat <<EOF
-          {
-            "bindings": [
-              { "type": "ai", "name": "AI" },
-              { "type": "kv_namespace", "name": "DEMO_GATE_KV", "namespace_id": "${KV_ID}" },
-              { "type": "secret_text", "name": "DEMO_TICKET_SECRET" },
-              { "type": "secret_text", "name": "TURNSTILE_SECRET" },
-              { "type": "plain_text", "name": "GEMINI_MODEL", "text": "gemini-2.0-flash" },
-              { "type": "plain_text", "name": "TURNSTILE_SITE_KEY", "text": "0x4AAAAAAEIQZbWBqWLSKe_r" }
-            ],
-            "compatibility_date": "2025-05-05",
-            "usage_model": "standard"
-          }
-          EOF
-          )
-          BODY=$(printf -- '--%s\r\nContent-Disposition: form-data; name="settings"\r\nContent-Type: application/json\r\n\r\n%s\r\n--%s--\r\n' "$BOUNDARY" "$META" "$BOUNDARY")
-          curl -fsS -X PATCH \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/workers/scripts/edge-labs/settings" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: multipart/form-data; boundary=${BOUNDARY}" \
-            --data-binary "$BODY" | tee /tmp/edge-settings.json
-          grep -q '"DEMO_GATE_KV"' /tmp/edge-settings.json
-          grep -q '"success":true' /tmp/edge-settings.json
-          echo "DEMO_GATE_KV binding asserted."
