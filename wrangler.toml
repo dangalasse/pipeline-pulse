@@ -7,8 +7,8 @@ workers_dev = true
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-# Serve /api/* via Worker first so assets never steal API routes.
-run_worker_first = ["/api/*"]
+# Serve Worker first so hostname redirects and API run before static assets.
+run_worker_first = true
 
 [[kv_namespaces]]
 binding = "DEMO_GATE_KV"
