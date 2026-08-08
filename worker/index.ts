@@ -294,7 +294,8 @@ const HONEYPOT_REPLIES = [
 
 function honeypotReply(pathname: string): Response {
   const pick =
-    HONEYPOT_REPLIES[Math.abs(hashStr(pathname)) % HONEYPOT_REPLIES.length]!;
+    HONEYPOT_REPLIES[Math.abs(hashStr(pathname)) % HONEYPOT_REPLIES.length] ??
+    HONEYPOT_REPLIES[0];
   return Response.json(
     {
       ok: false,
