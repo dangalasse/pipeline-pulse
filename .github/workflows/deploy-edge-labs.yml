@@ -29,4 +29,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: '4483b58d6fc9d89f06c521fd83a9a963'
-          command: deploy
+          # keep-vars: preserve dashboard secrets (TURNSTILE/DEMO_TICKET) across deploys
+          command: deploy --keep-vars
