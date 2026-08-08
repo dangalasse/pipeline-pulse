@@ -36,6 +36,8 @@ export interface Env {
 const EDGE_ANALYZE_URL = 'https://edge.galasse.dev/analyze-error';
 
 const CORS_ORIGINS = [
+  'https://pipeview.galasse.dev',
+  'https://staging.pipeview.galasse.dev',
   'https://pipeline.galasse.dev',
   'https://staging.pipeline.galasse.dev',
   'https://portfolio.galasse.dev',
@@ -68,7 +70,7 @@ function gateEnv(env: Env) {
 app.get('/api/health', (c) =>
   c.json({
     ok: true,
-    service: 'pipeline-pulse',
+    service: 'pipeview',
     env: c.env.DEPLOY_ENV,
     gate: Boolean(c.env.TURNSTILE_SECRET && c.env.DEMO_TICKET_SECRET),
     ts: new Date().toISOString(),
@@ -85,7 +87,7 @@ app.get('/api/demo-config', (c) =>
 
 app.get('/api/deploy-meta', (c) => {
   const meta: DeployMeta = {
-    service: 'pipeline-pulse',
+    service: 'pipeview',
     env: c.env.DEPLOY_ENV,
     gitSha: c.env.GIT_SHA,
     buildTime: c.env.BUILD_TIME,
@@ -133,7 +135,7 @@ app.post('/api/demo-ticket', async (c) => {
   try {
     const issued = await issueTicket(
       gateEnv(c.env),
-      body.aud ?? 'pipeline.dispatch',
+      body.aud ?? 'pipeview.dispatch',
       clientIp(c.req.raw),
       body.turnstileToken ?? '',
     );
@@ -163,7 +165,7 @@ app.post('/api/demo-run', async (c) => {
     await enforceTicketAndQuota(
       gateEnv(c.env),
       c.req.raw,
-      'pipeline.dispatch',
+      'pipeview.dispatch',
       c.req.header('X-Demo-Ticket'),
     );
     const record = await createDemoRun(token);
@@ -216,7 +218,7 @@ app.get('/api/demo-run/:id/nodes/:nodeId/logs', async (c) => {
     await enforceTicketAndQuota(
       gateEnv(c.env),
       c.req.raw,
-      'pipeline.logs',
+      'pipeview.logs',
       c.req.header('X-Demo-Ticket'),
     );
   } catch (err) {
@@ -294,19 +296,19 @@ app.post('/api/demo-ai-review', async (c) => {
     );
   }
 
-  const auth = await mintServiceAuth(secret, 'pipeline-pulse');
+  const auth = await mintServiceAuth(secret, 'pipeview');
 
   const edgeRes = await fetch(EDGE_ANALYZE_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Demo-Service': 'pipeline-pulse',
+      'X-Demo-Service': 'pipeview',
       'X-Demo-Service-Ts': auth.ts,
       'X-Demo-Service-Sig': auth.sig,
     },
     body: JSON.stringify({
       message: body.message,
-      context: body.context ?? 'Pipeline Pulse live demo failure',
+      context: body.context ?? 'Pipeview live demo failure',
       locale: body.locale ?? 'pt-BR',
     }),
   });
@@ -425,6 +427,20 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
+    const host = url.hostname;
+    // Brand rename: keep legacy hostnames working via redirect (HTML) / dual CORS (API).
+    if (
+      (host === 'pipeline.galasse.dev' ||
+        host === 'staging.pipeline.galasse.dev') &&
+      !url.pathname.startsWith('/api/')
+    ) {
+      const targetHost =
+        host === 'staging.pipeline.galasse.dev'
+          ? 'staging.pipeview.galasse.dev'
+          : 'pipeview.galasse.dev';
+      url.hostname = targetHost;
+      return Response.redirect(url.toString(), 301);
+    }
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (HONEYPOT_PATHS.has(path) || HONEYPOT_PATHS.has(url.pathname)) {
       return honeypotReply(path);

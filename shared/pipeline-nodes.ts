@@ -50,9 +50,9 @@ on:
     labelEn: 'CI',
     jobName: 'CI',
     explainPt:
-      'Lint com Biome e typecheck TypeScript no app e no Worker. É o primeiro freio antes de gastar tempo em teste.',
+      'Lint com Biome e typecheck TypeScript no app e no Worker — o primeiro freio antes de investir tempo em testes.',
     explainEn:
-      'Biome lint and TypeScript typecheck for the app and Worker. First brake before spending time on tests.',
+      'Biome lint and TypeScript typecheck for the app and Worker — the first brake before spending time on tests.',
     yaml: `- name: Lint (Biome)
   run: npm run lint
 

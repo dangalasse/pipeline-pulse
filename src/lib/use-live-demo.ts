@@ -169,7 +169,7 @@ export function useLiveDemo({
         setLoading(false);
         return;
       }
-      const ticket = await mintTicket('pipeline.dispatch', token);
+      const ticket = await mintTicket('pipeview.dispatch', token);
       resetTurnstile();
       if ('error' in ticket) {
         setError(ticket.error);
@@ -256,7 +256,7 @@ export function useLiveDemo({
           message:
             demo.errorMessage ??
             `Pipeline demo failed at: ${failedNodes || 'unknown step'}`,
-          context: `Pipeline Pulse live-demo run ${demo.id}`,
+          context: `Pipeview live-demo run ${demo.id}`,
           locale,
         }),
       });
@@ -291,7 +291,7 @@ export function useLiveDemo({
           });
           return;
         }
-        const ticket = await mintTicket('pipeline.logs', token);
+        const ticket = await mintTicket('pipeview.logs', token);
         resetTurnstile();
         if ('error' in ticket) {
           setNodeLog({

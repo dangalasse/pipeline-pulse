@@ -1,4 +1,4 @@
-# Pipeline Pulse — Terraform (Cloudflare stubs)
+# Pipeview — Terraform (Cloudflare stubs)
 
 Minimal Terraform for **Workers route bindings**. The Worker script itself is deployed by **Wrangler** in GitHub Actions (`deploy.yml` / `preview.yml`).
 
@@ -6,8 +6,8 @@ Minimal Terraform for **Workers route bindings**. The Worker script itself is de
 
 | Resource | Purpose |
 |----------|---------|
-| `cloudflare_workers_route.production` | `pipeline.galasse.dev/*` → `pipeline-pulse` |
-| `cloudflare_workers_route.staging` | `staging.pipeline.galasse.dev/*` → `pipeline-pulse-staging` |
+| `cloudflare_workers_route.production` | `pipeview.galasse.dev/*` → `pipeline-pulse` |
+| `cloudflare_workers_route.staging` | `staging.pipeview.galasse.dev/*` → `pipeline-pulse-staging` |
 
 ## Prerequisites
 
@@ -34,5 +34,5 @@ terraform plan \
 
 - **Wrangler remains the source of truth** for script deploys and `[vars]` / secrets (`GITHUB_TOKEN` for live demo).
 - Routes may already exist in the Cloudflare dashboard; import before apply if needed:
-  `terraform import cloudflare_workers_route.production ZONE_ID/pipeline.galasse.dev/*`
+  `terraform import cloudflare_workers_route.production ZONE_ID/pipeview.galasse.dev/*`
 - Custom domains can also be set in `wrangler.toml` — keep Terraform and Wrangler in sync to avoid drift.

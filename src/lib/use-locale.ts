@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { type Locale, copyFor, isEnglish, normalizeLocale } from '../i18n';
 
-const STORAGE_KEY = 'pipeline-pulse-locale';
+const STORAGE_KEY = 'pipeview-locale';
 
 function readQueryLocale(): Locale | null {
   if (typeof window === 'undefined') return null;

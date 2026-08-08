@@ -25,12 +25,12 @@ variable "zone_id" {
 
 variable "production_hostname" {
   type    = string
-  default = "pipeline.galasse.dev"
+  default = "pipeview.galasse.dev"
 }
 
 variable "staging_hostname" {
   type    = string
-  default = "staging.pipeline.galasse.dev"
+  default = "staging.pipeview.galasse.dev"
 }
 
 # Worker script is deployed via wrangler in CI — this stub documents the route binding.

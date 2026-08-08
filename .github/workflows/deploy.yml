@@ -22,9 +22,9 @@ jobs:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
-          echo "production → https://pipeline.galasse.dev"
-          echo "staging    → https://staging.pipeline.galasse.dev"
-          curl -fsS https://pipeline.galasse.dev/api/health | tee /tmp/health.json
+          echo "production → https://pipeview.galasse.dev"
+          echo "staging    → https://staging.pipeview.galasse.dev"
+          curl -fsS https://pipeview.galasse.dev/api/health | tee /tmp/health.json
           grep -q '"ok":true' /tmp/health.json
           if [ -n "${TOKEN}" ]; then
             echo "has_token=true" >> "$GITHUB_OUTPUT"
@@ -80,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${URL}" ]; then
-            URL="https://staging.pipeline.galasse.dev"
+            URL="https://staging.pipeview.galasse.dev"
           fi
           for i in 1 2 3 4 5; do
             if curl -fsS "$URL/api/health" | grep -q '"ok":true'; then
@@ -135,7 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${URL}" ]; then
-            URL="https://pipeline.galasse.dev"
+            URL="https://pipeview.galasse.dev"
           fi
           for i in 1 2 3 4 5 6 8; do
             if curl -fsS "$URL/api/health" | grep -q '"ok":true'; then

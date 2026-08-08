@@ -4,8 +4,8 @@
  */
 
 export type DemoAudience =
-  | 'pipeline.dispatch'
-  | 'pipeline.logs'
+  | 'pipeview.dispatch'
+  | 'pipeview.logs'
   | 'edge.analyze'
   | 'edge.coach'
   | 'vitrine.session';
@@ -18,13 +18,13 @@ export interface QuotaPolicy {
 }
 
 export const QUOTA_BY_AUD: Record<DemoAudience, QuotaPolicy> = {
-  'pipeline.dispatch': {
+  'pipeview.dispatch': {
     ipLimit: 1,
     ipWindowSec: 15 * 60,
     globalLimit: 8,
     globalWindowSec: 24 * 60 * 60,
   },
-  'pipeline.logs': {
+  'pipeview.logs': {
     ipLimit: 6,
     ipWindowSec: 60 * 60,
     globalLimit: 40,

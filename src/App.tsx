@@ -31,7 +31,7 @@ declare global {
 
 function buildTimeMeta(): DeployMeta {
   return {
-    service: 'pipeline-pulse',
+    service: 'pipeview',
     env: import.meta.env.VITE_DEPLOY_ENV || 'local',
     gitSha: import.meta.env.VITE_GIT_SHA || 'local',
     buildTime: import.meta.env.VITE_BUILD_TIME || 'local',

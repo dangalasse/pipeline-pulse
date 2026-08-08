@@ -13,6 +13,7 @@ import {
   labelFor,
 } from '../../shared/pipeline-nodes';
 import { type Locale, type UiCopy, isEnglish } from '../i18n';
+import { localizeStepName, localizeStepStatus } from '../lib/localize-run';
 import type { NodeLogResult } from '../lib/use-live-demo';
 
 interface PipelineCanvasProps {
@@ -142,9 +143,11 @@ function NodeDetail({
                 className={`node-step status-${stepStatusClass(step.status, step.conclusion)}`}
               >
                 <span className="node-step-num">{step.number}</span>
-                <span className="node-step-name">{step.name}</span>
+                <span className="node-step-name">
+                  {localizeStepName(step.name, locale)}
+                </span>
                 <span className="node-step-status">
-                  {step.conclusion ?? step.status}
+                  {localizeStepStatus(step.status, step.conclusion, locale)}
                 </span>
               </li>
             ))}

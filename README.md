@@ -1,4 +1,4 @@
-# Pipeline Pulse
+# Pipeview
 
 [![CI](https://github.com/dangalasse/pipeline-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/dangalasse/pipeline-pulse/actions/workflows/ci.yml)
 [![Deploy](https://github.com/dangalasse/pipeline-pulse/actions/workflows/deploy.yml/badge.svg)](https://github.com/dangalasse/pipeline-pulse/actions/workflows/deploy.yml)
@@ -7,8 +7,8 @@
 
 | Surface | URL |
 |---------|-----|
-| Production | https://pipeline.galasse.dev |
-| Staging | https://staging.pipeline.galasse.dev |
+| Production | https://pipeview.galasse.dev |
+| Staging | https://staging.pipeview.galasse.dev |
 | Actions | https://github.com/dangalasse/pipeline-pulse/actions |
 | Portfolio | https://portfolio.galasse.dev |
 
@@ -90,8 +90,8 @@ Required for staging (`push` to `main`) and production (`tag v*`):
 # Template: "Edit Cloudflare Workers" (account scoped)
 gh secret set CLOUDFLARE_API_TOKEN -R dangalasse/pipeline-pulse
 gh variable set CLOUDFLARE_ACCOUNT_ID -R dangalasse/pipeline-pulse -b 'YOUR_ACCOUNT_ID'
-gh variable set STAGING_URL -R dangalasse/pipeline-pulse -b 'https://staging.pipeline.galasse.dev'
-gh variable set PRODUCTION_URL -R dangalasse/pipeline-pulse -b 'https://pipeline.galasse.dev'
+gh variable set STAGING_URL -R dangalasse/pipeline-pulse -b 'https://staging.pipeview.galasse.dev'
+gh variable set PRODUCTION_URL -R dangalasse/pipeline-pulse -b 'https://pipeview.galasse.dev'
 ```
 
 Without `CLOUDFLARE_API_TOKEN`, `deploy.yml` **fails the gate** (no silent skip).

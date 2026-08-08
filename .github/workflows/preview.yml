@@ -74,7 +74,7 @@ jobs:
             const url =
               'https://pipeline-pulse-preview.dantonguerragalasse.workers.dev';
             const body = [
-              '### Pipeline Pulse preview',
+              '### Pipeview preview',
               '',
               `Deployed from \`${context.payload.pull_request.head.sha.slice(0, 7)}\`.`,
               '',
@@ -88,7 +88,7 @@ jobs:
               issue_number: context.issue.number,
             });
             const existing = comments.find((c) =>
-              c.user?.type === 'Bot' && c.body?.includes('Pipeline Pulse preview'),
+              c.user?.type === 'Bot' && c.body?.includes('Pipeview preview'),
             );
             if (existing) {
               await github.rest.issues.updateComment({
