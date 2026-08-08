@@ -1,0 +1,32 @@
+# One-shot / on-demand deploy of edge-labs using this repo's Cloudflare token.
+name: Deploy edge-labs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout edge-labs
+        uses: actions/checkout@v4
+        with:
+          repository: dangalasse/edge-labs
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: npm ci
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: '4483b58d6fc9d89f06c521fd83a9a963'
+          command: deploy
