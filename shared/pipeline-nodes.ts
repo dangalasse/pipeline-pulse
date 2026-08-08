@@ -79,7 +79,7 @@ on:
     labelEn: 'Test',
     jobName: 'Test',
     explainPt:
-      'Vitest nos contratos partilhados e na lógica pura. Não é e2e de browser — isso está no TOTE.',
+      'Vitest nos contratos compartilhados e na lógica pura. Não é e2e de browser — isso está no TOTE.',
     explainEn:
       'Vitest on shared contracts and pure logic. Not browser e2e — that lives in TOTE.',
     yaml: `- name: Unit tests (Vitest)
