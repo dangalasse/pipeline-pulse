@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { NodeDetailsMap } from '../../shared/node-run-detail';
 import type { NodeId, NodeStatus } from '../../shared/pipeline-nodes';
 import type { Locale } from '../i18n';
 
@@ -13,6 +14,7 @@ export interface DemoRunState {
     | 'cancelled'
     | 'idle';
   nodeStatuses: Record<NodeId, NodeStatus> | null;
+  nodeDetails: NodeDetailsMap | null;
   errorMessage: string | null;
 }
 
@@ -25,6 +27,15 @@ export interface AiReviewResult {
   analyzedAt?: string;
   error?: string;
   message?: string;
+}
+
+export interface NodeLogResult {
+  nodeId: NodeId;
+  truncated: boolean;
+  text: string;
+  lines?: number;
+  fetchedAt: string;
+  error?: string;
 }
 
 interface UseLiveDemoOptions {
@@ -57,6 +68,17 @@ async function mintTicket(
   return { ticket: data.ticket };
 }
 
+function applyRun(
+  data: DemoRunState,
+  setDemo: (d: DemoRunState) => void,
+  setNodeStatuses: (s: Record<NodeId, NodeStatus> | null) => void,
+  setNodeDetails: (d: NodeDetailsMap | null) => void,
+): void {
+  setDemo(data);
+  setNodeStatuses(data.nodeStatuses);
+  setNodeDetails(data.nodeDetails ?? null);
+}
+
 export function useLiveDemo({
   locale,
   t,
@@ -68,17 +90,20 @@ export function useLiveDemo({
     NodeId,
     NodeStatus
   > | null>(null);
+  const [nodeDetails, setNodeDetails] = useState<NodeDetailsMap | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiReview, setAiReview] = useState<AiReviewResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [logLoading, setLogLoading] = useState(false);
+  const [nodeLog, setNodeLog] = useState<NodeLogResult | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
-      pollRef.current = null;
     }
+    pollRef.current = null;
   }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
@@ -91,8 +116,7 @@ export function useLiveDemo({
         if (!res.ok) return;
         const data = (await res.json()) as DemoRunState;
         if (cancelled || !data.id) return;
-        setDemo(data);
-        setNodeStatuses(data.nodeStatuses);
+        applyRun(data, setDemo, setNodeStatuses, setNodeDetails);
       } catch {
         /* read-only best effort */
       }
@@ -110,8 +134,7 @@ export function useLiveDemo({
           const res = await fetch(`/api/demo-run/${id}`);
           if (!res.ok) return;
           const data = (await res.json()) as DemoRunState;
-          setDemo(data);
-          setNodeStatuses(data.nodeStatuses);
+          applyRun(data, setDemo, setNodeStatuses, setNodeDetails);
           if (
             data.workflowStatus === 'completed' ||
             data.workflowStatus === 'failure' ||
@@ -132,6 +155,7 @@ export function useLiveDemo({
     setLoading(true);
     setError(null);
     setAiReview(null);
+    setNodeLog(null);
     stopPolling();
 
     try {
@@ -178,8 +202,7 @@ export function useLiveDemo({
         return;
       }
 
-      setDemo(data);
-      setNodeStatuses(data.nodeStatuses);
+      applyRun(data, setDemo, setNodeStatuses, setNodeDetails);
       pollRun(data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -248,14 +271,94 @@ export function useLiveDemo({
     }
   }, [demo, getTurnstileToken, locale, resetTurnstile]);
 
+  const fetchNodeLog = useCallback(
+    async (nodeId: NodeId) => {
+      if (!demo?.id) return;
+      setLogLoading(true);
+      setNodeLog(null);
+      try {
+        const token = getTurnstileToken();
+        if (!token) {
+          setNodeLog({
+            nodeId,
+            truncated: false,
+            text: '',
+            fetchedAt: new Date().toISOString(),
+            error:
+              locale === 'en-US'
+                ? 'Complete the human check first.'
+                : 'Complete a verificação humana primeiro.',
+          });
+          return;
+        }
+        const ticket = await mintTicket('pipeline.logs', token);
+        resetTurnstile();
+        if ('error' in ticket) {
+          setNodeLog({
+            nodeId,
+            truncated: false,
+            text: '',
+            fetchedAt: new Date().toISOString(),
+            error: ticket.error,
+          });
+          return;
+        }
+
+        const res = await fetch(
+          `/api/demo-run/${encodeURIComponent(demo.id)}/nodes/${encodeURIComponent(nodeId)}/logs`,
+          { headers: { 'X-Demo-Ticket': ticket.ticket } },
+        );
+        const data = (await res.json()) as NodeLogResult & {
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          setNodeLog({
+            nodeId,
+            truncated: false,
+            text: '',
+            fetchedAt: new Date().toISOString(),
+            error: data.message ?? data.error ?? `HTTP ${res.status}`,
+          });
+          return;
+        }
+        setNodeLog({
+          nodeId: data.nodeId,
+          truncated: data.truncated,
+          text: data.text,
+          lines: data.lines,
+          fetchedAt: data.fetchedAt,
+        });
+      } catch (err) {
+        setNodeLog({
+          nodeId,
+          truncated: false,
+          text: '',
+          fetchedAt: new Date().toISOString(),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        setLogLoading(false);
+      }
+    },
+    [demo?.id, getTurnstileToken, locale, resetTurnstile],
+  );
+
+  const clearNodeLog = useCallback(() => setNodeLog(null), []);
+
   return {
     demo,
     nodeStatuses,
+    nodeDetails,
     loading,
     error,
     aiReview,
     aiLoading,
+    logLoading,
+    nodeLog,
     startDemo,
     requestAiReview,
+    fetchNodeLog,
+    clearNodeLog,
   };
 }

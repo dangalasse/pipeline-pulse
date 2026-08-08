@@ -61,12 +61,17 @@ export default function App() {
   const {
     demo,
     nodeStatuses,
+    nodeDetails,
     loading: demoLoading,
     error: demoError,
     aiReview,
     aiLoading,
+    logLoading,
+    nodeLog,
     startDemo,
     requestAiReview,
+    fetchNodeLog,
+    clearNodeLog,
   } = useLiveDemo({ locale, t, getTurnstileToken, resetTurnstile });
 
   useEffect(() => {
@@ -274,7 +279,17 @@ export default function App() {
 
       <section className="panel panel-canvas" aria-labelledby="belt-heading">
         <h2 id="belt-heading">{t.conveyorHeading}</h2>
-        <PipelineCanvas locale={locale} t={t} nodeStatuses={nodeStatuses} />
+        <PipelineCanvas
+          locale={locale}
+          t={t}
+          nodeStatuses={nodeStatuses}
+          nodeDetails={nodeDetails}
+          runId={demo?.id}
+          logLoading={logLoading}
+          nodeLog={nodeLog}
+          onFetchLog={fetchNodeLog}
+          onClearLog={clearNodeLog}
+        />
         {demoFailed ? (
           <div className="ai-review-block">
             <p className="demo-failed-label">{t.demoFailed}</p>

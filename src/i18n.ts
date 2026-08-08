@@ -55,6 +55,13 @@ export interface UiCopy {
   statusSuccess: string;
   statusFailure: string;
   statusSkipped: string;
+  liveSteps: string;
+  viewLog: string;
+  loadingLog: string;
+  logTruncated: string;
+  logUnavailable: string;
+  nodeNotInRun: string;
+  stepDuration: string;
 }
 
 const PT: UiCopy = {
@@ -97,6 +104,15 @@ const PT: UiCopy = {
   statusSuccess: 'ok',
   statusFailure: 'falhou',
   statusSkipped: 'saltado',
+  liveSteps: 'Steps deste run',
+  viewLog: 'Ver log',
+  loadingLog: 'A carregar log…',
+  logTruncated:
+    'Log truncado (últimas linhas, máx. 32 KiB) — secrets redactados.',
+  logUnavailable:
+    'Sem job neste live-demo para este nó (staging/prod ficam no deploy.yml).',
+  nodeNotInRun: 'Este nó não correu neste live-demo.',
+  stepDuration: 'duração',
 };
 
 const EN: UiCopy = {
@@ -139,6 +155,14 @@ const EN: UiCopy = {
   statusSuccess: 'ok',
   statusFailure: 'failed',
   statusSkipped: 'skipped',
+  liveSteps: 'Steps in this run',
+  viewLog: 'View log',
+  loadingLog: 'Loading log…',
+  logTruncated: 'Log truncated (last lines, max 32 KiB) — secrets redacted.',
+  logUnavailable:
+    'No job for this node in the live-demo (staging/prod live in deploy.yml).',
+  nodeNotInRun: 'This node did not run in this live-demo.',
+  stepDuration: 'duration',
 };
 
 export function copyFor(locale: Locale): UiCopy {

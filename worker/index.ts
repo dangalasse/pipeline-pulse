@@ -11,8 +11,10 @@ import {
 import {
   TokenMissingError,
   createDemoRun,
+  fetchNodeJobLogs,
   getDemoRun,
   getLatestLiveDemoRun,
+  isNodeId,
   serializeDemoRun,
 } from './demo-run';
 
@@ -187,6 +189,65 @@ app.get('/api/demo-run/:id', async (c) => {
     return c.json({ error: 'not_found', message: 'Demo run not found.' }, 404);
   }
   return c.json(serializeDemoRun(record));
+});
+
+app.get('/api/demo-run/:id/nodes/:nodeId/logs', async (c) => {
+  const token = c.env.GITHUB_TOKEN?.trim();
+  if (!token) {
+    return c.json(
+      {
+        error: 'unavailable',
+        message:
+          'Job logs require GITHUB_TOKEN behind the Demo Gate (same as dispatch).',
+      },
+      503,
+    );
+  }
+
+  const nodeIdRaw = c.req.param('nodeId');
+  if (!isNodeId(nodeIdRaw)) {
+    return c.json(
+      { error: 'bad_node', message: `Unknown node "${nodeIdRaw}".` },
+      400,
+    );
+  }
+
+  try {
+    await enforceTicketAndQuota(
+      gateEnv(c.env),
+      c.req.raw,
+      'pipeline.logs',
+      c.req.header('X-Demo-Ticket'),
+    );
+  } catch (err) {
+    if (err instanceof DemoGateError) {
+      return c.json({ error: err.code, message: err.message }, err.status);
+    }
+    return c.json({ error: 'gate_error', message: String(err) }, 500);
+  }
+
+  const record = await getDemoRun(token, c.req.param('id'));
+  if (!record) {
+    return c.json({ error: 'not_found', message: 'Demo run not found.' }, 404);
+  }
+
+  try {
+    const logs = await fetchNodeJobLogs(token, record, nodeIdRaw);
+    return c.json({
+      nodeId: logs.nodeId,
+      truncated: logs.truncated,
+      text: logs.text,
+      lines: logs.text.split(/\r?\n/).length,
+      fetchedAt: logs.fetchedAt,
+      githubJobId: logs.githubJobId,
+    });
+  } catch (err) {
+    if (err instanceof TokenMissingError) {
+      return c.json({ error: 'unavailable', message: err.message }, 503);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: 'logs_failed', message }, 502);
+  }
 });
 
 app.post('/api/demo-ai-review', async (c) => {
