@@ -108,7 +108,8 @@ POST /api/demo-ai-review
       'No PR, sobe um Worker de preview e comenta a URL. O botão “demo ao vivo” desta página para no build — não faz deploy.',
     explainEn:
       'On a PR, a preview Worker goes up and the URL is commented. The “live demo” button on this page stops at build — no deploy.',
-    yaml: `# preview.yml (PR only)
+    yaml: `# live-demo.yml — this node is the Build job (no deploy).
+# preview.yml (PR only) is the real Workers preview:
 - name: Deploy Workers preview
   uses: cloudflare/wrangler-action@v3
   with:

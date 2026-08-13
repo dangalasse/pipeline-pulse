@@ -1,4 +1,5 @@
 import { unzipSync } from 'fflate';
+import { fetchGithubJobLogBody } from '../shared/github-job-logs';
 import type {
   JobStepDetail,
   NodeDetailsMap,
@@ -464,11 +465,12 @@ export async function fetchNodeJobLogs(
     );
   }
 
-  const res = await githubFetch(
+  const githubRes = await githubFetch(
     token,
     `/repos/${GITHUB_REPO}/actions/jobs/${detail.githubJobId}/logs`,
-    { redirect: 'follow' },
+    { redirect: 'manual' },
   );
+  const res = await fetchGithubJobLogBody(githubRes);
   if (!res.ok) {
     const detailText = await res.text();
     throw new Error(

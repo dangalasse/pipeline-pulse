@@ -1,6 +1,8 @@
 name = "pipeline-pulse"
 main = "worker/index.ts"
 compatibility_date = "2025-05-05"
+# GitHub job logs 302 to Azure; do not forward the GitHub bearer token.
+compatibility_flags = ["strip_authorization_on_cross_origin_redirect"]
 workers_dev = true
 
 [assets]
