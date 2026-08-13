@@ -7,12 +7,8 @@ import type {
   LabObject,
   LabShape,
 } from '../shared/lab-object';
-import {
-  DEFAULT_LAB_KNOBS,
-  PREVIEW_LAB_URL,
-  PREVIEW_ORIGIN,
-} from '../shared/lab-object';
-import { LabPicker } from './components/LabPicker';
+import { DEFAULT_LAB_KNOBS, PREVIEW_ORIGIN } from '../shared/lab-object';
+import { LabPortal } from './components/LabPortal';
 import { LocaleToggle } from './components/LocaleToggle';
 import { PipelineCanvas } from './components/PipelineCanvas';
 import { useLiveDemo } from './lib/use-live-demo';
@@ -270,40 +266,26 @@ export default function App() {
         ) : null}
       </header>
 
-      <section className="panel" aria-labelledby="lab-heading">
+      <section className="panel panel-portal" aria-labelledby="lab-heading">
         <div className="panel-head">
           <h2 id="lab-heading">{t.labHeading}</h2>
         </div>
-        <p className="lab-lede">{t.labLede}</p>
-        <LabPicker
-          hue={knobs.hue}
-          shape={knobs.shape}
-          disabled={demoLoading}
+        <LabPortal
+          knobs={knobs}
+          shipped={shipped}
+          previewReady={previewReady}
+          demoLoading={demoLoading}
           hueLabel={t.labHue}
           shapeLabel={t.labShape}
+          tuneLabel={t.labTune}
+          closeTuneLabel={t.labTuneClose}
+          openStageLabel={t.labOpenStage}
+          waitingLabel={t.labWaiting}
+          sharedLabel={t.labShared}
+          portalLabel={t.labPortal}
           onHue={(hue: LabHue) => setKnobs((k) => ({ ...k, hue }))}
           onShape={(shape: LabShape) => setKnobs((k) => ({ ...k, shape }))}
         />
-        <p className="muted lab-open">{t.labShared}</p>
-        <p className="lab-open">
-          <a
-            className="btn primary"
-            href={PREVIEW_LAB_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t.labOpenStage}
-          </a>
-          {shipped ? (
-            <span className="muted">
-              {' '}
-              {shipped.hue} · {shipped.shape} · {shortSha(shipped.gitSha)}
-            </span>
-          ) : null}
-        </p>
-        {!previewReady ? (
-          <p className="muted lab-open">{t.labWaiting}</p>
-        ) : null}
       </section>
 
       <section className="panel" aria-labelledby="deploy-heading">

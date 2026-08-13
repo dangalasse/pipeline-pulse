@@ -69,12 +69,15 @@ export interface UiCopy {
   labOpenStage: string;
   labWaiting: string;
   labShared: string;
+  labTune: string;
+  labTuneClose: string;
+  labPortal: string;
 }
 
 const PT: UiCopy = {
   eyebrow: 'galasse · vitrine devops',
   title: 'Pipeview',
-  lede: 'Um painel da esteira real por trás deste site: GitHub Actions e um Worker na Cloudflare. Escolha cor e forma, rode a demo — o palco de preview muda só depois do CI.',
+  lede: 'Esteira real: GitHub Actions → Worker. O palco ao vivo é o preview; produção só muda com tag.',
   viewActions: 'Ver no Actions',
   repository: 'Repositório',
   thisDeploy: 'Este deploy',
@@ -123,19 +126,21 @@ const PT: UiCopy = {
   stepDuration: 'duration',
   labHeading: 'Palco da demo',
   labLede:
-    'Quatro cores, três formas. Sem texto. A esteira faz lint → testes → build e publica o palco num Worker de preview — não em produção.',
+    'Cor e forma passam pelo CI e aparecem no palco de preview — não em produção.',
   labHue: 'Cor',
   labShape: 'Forma',
-  labOpenStage: 'Abrir o palco publicado →',
-  labWaiting: 'Quando o Preview ficar verde, o palco atualiza.',
-  labShared:
-    'Palco compartilhado: o último live-demo que passou é o que está no ar.',
+  labOpenStage: 'Abrir',
+  labWaiting: 'Aguardando o Preview.',
+  labShared: 'Palco compartilhado: o último live-demo que passou.',
+  labTune: 'Ajustar',
+  labTuneClose: 'Fechar',
+  labPortal: 'Palco ao vivo (preview)',
 };
 
 const EN: UiCopy = {
   eyebrow: 'galasse · devops showcase',
   title: 'Pipeview',
-  lede: 'A live look at the real conveyor behind this site: GitHub Actions and a Cloudflare Worker. Pick a color and shape, run the demo — the preview stage changes only after CI.',
+  lede: 'Real conveyor: GitHub Actions → Worker. The live stage is preview; production only moves on a tag.',
   viewActions: 'View on Actions',
   repository: 'Repository',
   thisDeploy: 'This deploy',
@@ -183,12 +188,15 @@ const EN: UiCopy = {
   stepDuration: 'duration',
   labHeading: 'Demo stage',
   labLede:
-    'Four colors, three shapes. No free text. The belt runs lint → tests → build and ships the stage to a preview Worker — not production.',
+    'Color and shape go through CI and land on the preview stage — not production.',
   labHue: 'Color',
   labShape: 'Shape',
-  labOpenStage: 'Open the published stage →',
-  labWaiting: 'When Preview turns green, the stage updates.',
-  labShared: 'Shared stage: the last live-demo that passed is what is live.',
+  labOpenStage: 'Open',
+  labWaiting: 'Waiting for Preview.',
+  labShared: 'Shared stage: the last live-demo that passed.',
+  labTune: 'Tune',
+  labTuneClose: 'Close',
+  labPortal: 'Live stage (preview)',
 };
 
 export function copyFor(locale: Locale): UiCopy {

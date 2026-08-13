@@ -19,11 +19,16 @@ function fallbackObject(): LabObject {
   };
 }
 
+function isEmbed(): boolean {
+  return new URLSearchParams(window.location.search).get('embed') === '1';
+}
+
 export function LabPage() {
   const [lab, setLab] = useState<LabObject>(fallbackObject);
+  const embed = isEmbed();
 
   useEffect(() => {
-    document.title = 'Palco · Pipeview';
+    document.title = embed ? 'Palco' : 'Palco · Pipeview';
     let cancelled = false;
     fetch('/api/lab-object')
       .then(async (res) => {
@@ -37,16 +42,20 @@ export function LabPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [embed]);
 
   const sha = shortSha(lab.gitSha);
   const knobs = lab.hue && lab.shape ? lab : DEFAULT_LAB_KNOBS;
 
   return (
-    <div className="lab-page">
-      <p className="lab-kicker">sandbox · live-demo preview</p>
-      <LabStage hue={knobs.hue} shape={knobs.shape} size="lg" />
-      <dl className="lab-stamp">
+    <div className={`lab-page${embed ? ' lab-page--embed' : ''}`}>
+      {embed ? null : <p className="lab-kicker">sandbox · live-demo preview</p>}
+      <LabStage
+        hue={knobs.hue}
+        shape={knobs.shape}
+        size={embed ? 'sm' : 'lg'}
+      />
+      <dl className={`lab-stamp${embed ? ' lab-stamp--embed' : ''}`}>
         <div>
           <dt>hue</dt>
           <dd className="mono">{knobs.hue}</dd>
@@ -59,16 +68,20 @@ export function LabPage() {
           <dt>sha</dt>
           <dd className="mono">{sha}</dd>
         </div>
-        <div>
-          <dt>env</dt>
-          <dd className="mono">{lab.env}</dd>
-        </div>
-        <div>
-          <dt>built</dt>
-          <dd className="mono">{lab.buildTime}</dd>
-        </div>
+        {embed ? null : (
+          <>
+            <div>
+              <dt>env</dt>
+              <dd className="mono">{lab.env}</dd>
+            </div>
+            <div>
+              <dt>built</dt>
+              <dd className="mono">{lab.buildTime}</dd>
+            </div>
+          </>
+        )}
       </dl>
-      {lab.githubRunUrl ? (
+      {embed || !lab.githubRunUrl ? null : (
         <a
           className="btn ghost"
           href={lab.githubRunUrl}
@@ -77,7 +90,7 @@ export function LabPage() {
         >
           GitHub run →
         </a>
-      ) : null}
+      )}
     </div>
   );
 }

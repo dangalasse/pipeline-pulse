@@ -440,12 +440,22 @@ function guessMime(pathname: string): string | null {
   return null;
 }
 
+const FRAME_ANCESTORS = [
+  "'self'",
+  'https://pipeview.galasse.dev',
+  'https://staging.pipeview.galasse.dev',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:8787',
+  'http://127.0.0.1:8787',
+].join(' ');
+
 async function serveAssets(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const res = await env.ASSETS.fetch(request);
   const ct = res.headers.get('content-type') ?? '';
   if (ct && !ct.includes('application/octet-stream')) {
-    return res;
+    return withFrameAncestors(res, ct);
   }
   const guessed = guessMime(url.pathname);
   if (!guessed) {
@@ -454,6 +464,23 @@ async function serveAssets(request: Request, env: Env): Promise<Response> {
   const headers = new Headers(res.headers);
   headers.set('Content-Type', guessed);
   headers.set('X-Content-Type-Options', 'nosniff');
+  applyFrameAncestors(headers, guessed);
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
+function applyFrameAncestors(headers: Headers, contentType: string): void {
+  if (!contentType.includes('text/html')) return;
+  headers.set('Content-Security-Policy', `frame-ancestors ${FRAME_ANCESTORS}`);
+}
+
+function withFrameAncestors(res: Response, contentType: string): Response {
+  if (!contentType.includes('text/html')) return res;
+  const headers = new Headers(res.headers);
+  applyFrameAncestors(headers, contentType);
   return new Response(res.body, {
     status: res.status,
     statusText: res.statusText,

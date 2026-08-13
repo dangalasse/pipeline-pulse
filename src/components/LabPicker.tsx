@@ -1,6 +1,5 @@
 import type { LabHue, LabShape } from '../../shared/lab-object';
 import { LAB_HUES, LAB_SHAPES } from '../../shared/lab-object';
-import { LabStage } from './LabStage';
 
 interface LabPickerProps {
   hue: LabHue;
@@ -22,42 +21,39 @@ export function LabPicker({
   onShape,
 }: LabPickerProps) {
   return (
-    <div className="lab-picker">
-      <LabStage hue={hue} shape={shape} size="sm" />
-      <div className="lab-controls">
-        <fieldset className="lab-fieldset" disabled={disabled}>
-          <legend>{hueLabel}</legend>
-          <div className="lab-swatches">
-            {LAB_HUES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={`lab-swatch${option === hue ? ' is-on' : ''}`}
-                data-hue={option}
-                aria-pressed={option === hue}
-                aria-label={option}
-                onClick={() => onHue(option)}
-              />
-            ))}
-          </div>
-        </fieldset>
-        <fieldset className="lab-fieldset" disabled={disabled}>
-          <legend>{shapeLabel}</legend>
-          <div className="lab-shapes">
-            {LAB_SHAPES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={`lab-shape-btn${option === shape ? ' is-on' : ''}`}
-                aria-pressed={option === shape}
-                onClick={() => onShape(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      </div>
+    <div className="lab-picker lab-picker--compact">
+      <fieldset className="lab-fieldset" disabled={disabled}>
+        <legend>{hueLabel}</legend>
+        <div className="lab-swatches">
+          {LAB_HUES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`lab-swatch${option === hue ? ' is-on' : ''}`}
+              data-hue={option}
+              aria-pressed={option === hue}
+              aria-label={option}
+              onClick={() => onHue(option)}
+            />
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="lab-fieldset" disabled={disabled}>
+        <legend>{shapeLabel}</legend>
+        <div className="lab-shapes">
+          {LAB_SHAPES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`lab-shape-btn${option === shape ? ' is-on' : ''}`}
+              aria-pressed={option === shape}
+              onClick={() => onShape(option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </fieldset>
     </div>
   );
 }

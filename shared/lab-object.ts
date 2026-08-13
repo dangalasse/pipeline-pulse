@@ -26,6 +26,8 @@ export const PREVIEW_ORIGIN =
 
 export const PREVIEW_LAB_URL = `${PREVIEW_ORIGIN}/lab`;
 
+export const PREVIEW_LAB_EMBED_URL = `${PREVIEW_LAB_URL}?embed=1`;
+
 const HUE_SET = new Set<string>(LAB_HUES);
 const SHAPE_SET = new Set<string>(LAB_SHAPES);
 
