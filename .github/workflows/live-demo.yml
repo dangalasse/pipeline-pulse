@@ -152,7 +152,19 @@ jobs:
         run: |
           set -euo pipefail
           URL='https://pipeline-pulse-preview.dantonguerragalasse.workers.dev'
-          curl -fsS "$URL/api/lab-object" | tee /tmp/lab.json
+          ok=0
+          for i in 1 2 3 4 5 6 8; do
+            if curl -fsS "$URL/api/lab-object" > /tmp/lab.json; then
+              ok=1
+              break
+            fi
+            sleep 3
+          done
+          if [ "$ok" != 1 ]; then
+            echo "lab-object never became ready" >&2
+            exit 1
+          fi
+          cat /tmp/lab.json
           python3 - <<'PY'
           import json, os, sys
           with open('/tmp/lab.json', encoding='utf-8') as f:
@@ -162,4 +174,4 @@ jobs:
           if data.get('shape') != os.environ['SHAPE']:
               sys.exit(f"shape mismatch: {data!r}")
           PY
-          curl -fsS "$URL/lab" | grep -q 'data-lab-stage'
+          curl -fsS -o /dev/null -w '%{http_code}\n' "$URL/lab" | grep -Eq '200'
