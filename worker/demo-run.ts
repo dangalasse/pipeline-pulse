@@ -269,7 +269,10 @@ async function refreshRunFromGithub(
   applyGithubJobs(record, jobsBody.jobs);
 }
 
-export async function createDemoRun(token: string): Promise<DemoRunRecord> {
+export async function createDemoRun(
+  token: string,
+  knobs: { hue: string; shape: string },
+): Promise<DemoRunRecord> {
   pruneOldRuns();
 
   if (!token) throw new TokenMissingError();
@@ -295,7 +298,10 @@ export async function createDemoRun(token: string): Promise<DemoRunRecord> {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref: 'main' }),
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: { hue: knobs.hue, shape: knobs.shape },
+      }),
     },
   );
 

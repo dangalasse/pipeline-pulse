@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { LabKnobs } from '../../shared/lab-object';
+import { parseLabKnobs } from '../../shared/lab-object';
 import type { NodeDetailsMap } from '../../shared/node-run-detail';
 import type { NodeId, NodeStatus } from '../../shared/pipeline-nodes';
 import type { Locale } from '../i18n';
@@ -151,72 +153,89 @@ export function useLiveDemo({
     [stopPolling],
   );
 
-  const startDemo = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setAiReview(null);
-    setNodeLog(null);
-    stopPolling();
+  const startDemo = useCallback(
+    async (rawKnobs?: LabKnobs) => {
+      setLoading(true);
+      setError(null);
+      setAiReview(null);
+      setNodeLog(null);
+      stopPolling();
 
-    try {
-      const token = getTurnstileToken();
-      if (!token) {
-        setError(
-          locale === 'en-US'
-            ? 'Complete the human check first.'
-            : 'Complete a verificação humana primeiro.',
-        );
-        setLoading(false);
-        return;
-      }
-      const ticket = await mintTicket('pipeview.dispatch', token);
-      resetTurnstile();
-      if ('error' in ticket) {
-        setError(ticket.error);
-        setLoading(false);
-        return;
-      }
+      try {
+        const knobs = parseLabKnobs(rawKnobs);
+        if (!knobs) {
+          setError(
+            locale === 'en-US'
+              ? 'Pick a listed color and shape.'
+              : 'Escolha uma cor e uma forma da lista.',
+          );
+          setLoading(false);
+          return;
+        }
+        const token = getTurnstileToken();
+        if (!token) {
+          setError(
+            locale === 'en-US'
+              ? 'Complete the human check first.'
+              : 'Complete a verificação humana primeiro.',
+          );
+          setLoading(false);
+          return;
+        }
+        const ticket = await mintTicket('pipeview.dispatch', token);
+        resetTurnstile();
+        if ('error' in ticket) {
+          setError(ticket.error);
+          setLoading(false);
+          return;
+        }
 
-      const res = await fetch('/api/demo-run', {
-        method: 'POST',
-        headers: { 'X-Demo-Ticket': ticket.ticket },
-      });
-      const data = (await res.json()) as DemoRunState & {
-        error?: string;
-        message?: string;
-      };
+        const res = await fetch('/api/demo-run', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Demo-Ticket': ticket.ticket,
+          },
+          body: JSON.stringify(knobs),
+        });
+        const data = (await res.json()) as DemoRunState & {
+          error?: string;
+          message?: string;
+        };
 
-      if (res.status === 503) {
-        setError(t.demoUnavailable);
-        setLoading(false);
-        return;
-      }
-      if (res.status === 429) {
-        setError(data.message ?? t.rateLimited);
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        setError(data.message ?? `HTTP ${res.status}`);
-        setLoading(false);
-        return;
-      }
+        if (res.status === 503) {
+          setError(t.demoUnavailable);
+          setLoading(false);
+          return;
+        }
+        if (res.status === 429) {
+          setError(data.message ?? t.rateLimited);
+          setLoading(false);
+          return;
+        }
+        if (!res.ok) {
+          setError(data.message ?? `HTTP ${res.status}`);
+          setLoading(false);
+          return;
+        }
 
-      applyRun(data, setDemo, setNodeStatuses, setNodeDetails);
-      pollRun(data.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setLoading(false);
-    }
-  }, [
-    getTurnstileToken,
-    locale,
-    pollRun,
-    resetTurnstile,
-    stopPolling,
-    t.demoUnavailable,
-    t.rateLimited,
-  ]);
+        applyRun(data, setDemo, setNodeStatuses, setNodeDetails);
+        pollRun(data.id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
+      }
+    },
+    [
+      getTurnstileToken,
+      locale,
+      pollRun,
+      resetTurnstile,
+      stopPolling,
+      t.demoUnavailable,
+      t.rateLimited,
+    ],
+  );
 
   const requestAiReview = useCallback(async () => {
     if (!demo) return;

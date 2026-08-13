@@ -18,7 +18,7 @@ The home page shows the **git SHA**, **environment**, **build time**, and **work
 
 - **Bilingual UI** — PT-BR (default) / ENG-US via `localStorage` + `?lang=` (same pattern as [edge-labs](https://edge.galasse.dev))
 - **n8n-style pipeline canvas** — Push → CI → Test → AI Review → Preview → Staging → Prod with animated edges; click a node for workflow YAML
-- **Run live demo** — Turnstile → HMAC ticket → KV quotas, then `workflow_dispatch` of `live-demo.yml` (lint / typecheck / security audit / test / build only, **no deploy**). Opening the page shows the last real run (public GitHub read).
+- **Run live demo** — Turnstile → HMAC ticket → KV quotas, then `workflow_dispatch` of `live-demo.yml` (lint / typecheck / security / test / **preview deploy** of the palco). Allowlisted knobs only (`cyan|amber|violet|rose` × `cube|ring|bar`). Shared sandbox: https://pipeline-pulse-preview.dantonguerragalasse.workers.dev/lab
 - **AI review on failure** — same Demo Gate (`edge.analyze` quota); Worker proxies to Edge Labs with short-lived service auth
 
 ## Demo Gate (abuse by contract)
@@ -47,7 +47,7 @@ flowchart LR
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `ci.yml` | PR + push `main` | Biome, typecheck, Vitest, Vite build |
-| `live-demo.yml` | `workflow_dispatch` (+ UI button) | CI → Security (`npm audit --omit=dev`) → Test → AI Review → Build — **no deploy** |
+| `live-demo.yml` | `workflow_dispatch` (+ UI button) | CI → Security → Test → AI Review → **Preview Worker** (`LAB_HUE` / `LAB_SHAPE` allowlist, smoke `/api/lab-object`) |
 | `preview.yml` | PR | Deploy `pipeline-pulse-preview` Worker + comment URL |
 | `deploy.yml` | push `main` | Staging + smoke `/api/health` (requires `CLOUDFLARE_API_TOKEN`) |
 | `deploy.yml` | tag `v*` | Production (GitHub Environment `production`) + smoke |

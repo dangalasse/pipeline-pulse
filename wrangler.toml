@@ -23,6 +23,8 @@ BUILD_TIME = "local"
 GITHUB_RUN_URL = ""
 GITHUB_REPO = "dangalasse/pipeline-pulse"
 TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
+LAB_HUE = "cyan"
+LAB_SHAPE = "cube"
 # Secrets: GITHUB_TOKEN, TURNSTILE_SECRET, DEMO_TICKET_SECRET
 
 [env.staging]
@@ -40,6 +42,8 @@ BUILD_TIME = "local"
 GITHUB_RUN_URL = ""
 GITHUB_REPO = "dangalasse/pipeline-pulse"
 TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
+LAB_HUE = "cyan"
+LAB_SHAPE = "cube"
 
 [env.preview]
 name = "pipeline-pulse-preview"
@@ -56,3 +60,5 @@ BUILD_TIME = "local"
 GITHUB_RUN_URL = ""
 GITHUB_REPO = "dangalasse/pipeline-pulse"
 TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
+LAB_HUE = "cyan"
+LAB_SHAPE = "cube"

@@ -2,6 +2,11 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { DeployMeta } from '../shared/deploy-meta';
 import {
+  PREVIEW_LAB_URL,
+  labKnobsFromEnv,
+  parseLabKnobs,
+} from '../shared/lab-object';
+import {
   DemoGateError,
   clientIp,
   enforceTicketAndQuota,
@@ -27,6 +32,8 @@ export interface Env {
   GITHUB_RUN_URL: string;
   GITHUB_REPO: string;
   TURNSTILE_SITE_KEY: string;
+  LAB_HUE?: string;
+  LAB_SHAPE?: string;
   /** Optional — fine-grained PAT or GitHub App installation token behind the gate */
   GITHUB_TOKEN?: string;
   TURNSTILE_SECRET?: string;
@@ -36,7 +43,7 @@ export interface Env {
 const EDGE_ANALYZE_URL = 'https://edge.galasse.dev/analyze-error';
 
 const CORS_ORIGINS = [
-  'https://pipeview.galasse.dev',
+  'https://pipeline-pulse-preview.dantonguerragalasse.workers.dev',
   'https://staging.pipeview.galasse.dev',
   'https://pipeline.galasse.dev',
   'https://staging.pipeline.galasse.dev',
@@ -84,6 +91,18 @@ app.get('/api/demo-config', (c) =>
     dispatchReady: Boolean(c.env.GITHUB_TOKEN?.trim()),
   }),
 );
+
+app.get('/api/lab-object', (c) => {
+  const knobs = labKnobsFromEnv(c.env.LAB_HUE, c.env.LAB_SHAPE);
+  return c.json({
+    ...knobs,
+    env: c.env.DEPLOY_ENV,
+    gitSha: c.env.GIT_SHA,
+    buildTime: c.env.BUILD_TIME,
+    githubRunUrl: c.env.GITHUB_RUN_URL || null,
+    previewUrl: PREVIEW_LAB_URL,
+  });
+});
 
 app.get('/api/deploy-meta', (c) => {
   const meta: DeployMeta = {
@@ -168,7 +187,29 @@ app.post('/api/demo-run', async (c) => {
       'pipeview.dispatch',
       c.req.header('X-Demo-Ticket'),
     );
-    const record = await createDemoRun(token);
+    let raw: unknown = null;
+    const contentType = c.req.header('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      try {
+        raw = await c.req.json();
+      } catch {
+        return c.json(
+          { error: 'invalid_json', message: 'Expected JSON body.' },
+          400,
+        );
+      }
+    }
+    const knobs = parseLabKnobs(raw);
+    if (!knobs) {
+      return c.json(
+        {
+          error: 'bad_lab',
+          message: 'hue and shape must be from the allowlist.',
+        },
+        400,
+      );
+    }
+    const record = await createDemoRun(token, knobs);
     return c.json(serializeDemoRun(record), 202);
   } catch (err) {
     if (err instanceof DemoGateError) {

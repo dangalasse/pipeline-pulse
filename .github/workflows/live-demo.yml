@@ -2,6 +2,19 @@ name: Live Demo
 
 on:
   workflow_dispatch:
+    inputs:
+      hue:
+        description: Allowlisted palco hue
+        required: false
+        type: choice
+        options: [cyan, amber, violet, rose]
+        default: cyan
+      shape:
+        description: Allowlisted palco shape
+        required: false
+        type: choice
+        options: [cube, ring, bar]
+        default: cube
 
 permissions:
   contents: read
@@ -79,8 +92,8 @@ jobs:
           echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "TOTE e2e (Playwright) and host security gates live in dangalasse/TOTE — not in this Worker demo."
 
-  build:
-    name: Build
+  preview:
+    name: Preview
     needs: ai-review
     runs-on: ubuntu-latest
     steps:
@@ -94,10 +107,59 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Pin lab knobs
+        id: knobs
+        env:
+          HUE: ${{ inputs.hue }}
+          SHAPE: ${{ inputs.shape }}
+        run: |
+          set -euo pipefail
+          hue="${HUE:-cyan}"
+          shape="${SHAPE:-cube}"
+          case "$hue" in cyan|amber|violet|rose) ;; *) echo "rejected hue" >&2; exit 1 ;; esac
+          case "$shape" in cube|ring|bar) ;; *) echo "rejected shape" >&2; exit 1 ;; esac
+          echo "hue=$hue" >> "$GITHUB_OUTPUT"
+          echo "shape=$shape" >> "$GITHUB_OUTPUT"
+
       - name: Build
         env:
           VITE_GIT_SHA: ${{ github.sha }}
-          VITE_DEPLOY_ENV: live-demo
+          VITE_DEPLOY_ENV: preview
           VITE_BUILD_TIME: ${{ github.run_started_at }}
           VITE_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VITE_LAB_HUE: ${{ steps.knobs.outputs.hue }}
+          VITE_LAB_SHAPE: ${{ steps.knobs.outputs.shape }}
         run: npm run build
+
+      - name: Deploy sandbox Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            deploy --env preview
+            --var GIT_SHA:${{ github.sha }}
+            --var BUILD_TIME:${{ github.run_started_at }}
+            --var GITHUB_RUN_URL:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            --var DEPLOY_ENV:preview
+            --var LAB_HUE:${{ steps.knobs.outputs.hue }}
+            --var LAB_SHAPE:${{ steps.knobs.outputs.shape }}
+
+      - name: Smoke palco
+        env:
+          HUE: ${{ steps.knobs.outputs.hue }}
+          SHAPE: ${{ steps.knobs.outputs.shape }}
+        run: |
+          set -euo pipefail
+          URL='https://pipeline-pulse-preview.dantonguerragalasse.workers.dev'
+          curl -fsS "$URL/api/lab-object" | tee /tmp/lab.json
+          python3 - <<'PY'
+          import json, os, sys
+          with open('/tmp/lab.json', encoding='utf-8') as f:
+              data = json.load(f)
+          if data.get('hue') != os.environ['HUE']:
+              sys.exit(f"hue mismatch: {data!r}")
+          if data.get('shape') != os.environ['SHAPE']:
+              sys.exit(f"shape mismatch: {data!r}")
+          PY
+          curl -fsS "$URL/lab" | grep -q 'data-lab-stage'

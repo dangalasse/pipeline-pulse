@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeployMeta } from '../shared/deploy-meta';
 import { isLiveSha, shortSha } from '../shared/deploy-meta';
+import type {
+  LabHue,
+  LabKnobs,
+  LabObject,
+  LabShape,
+} from '../shared/lab-object';
+import {
+  DEFAULT_LAB_KNOBS,
+  PREVIEW_LAB_URL,
+  PREVIEW_ORIGIN,
+} from '../shared/lab-object';
+import { LabPicker } from './components/LabPicker';
 import { LocaleToggle } from './components/LocaleToggle';
 import { PipelineCanvas } from './components/PipelineCanvas';
 import { useLiveDemo } from './lib/use-live-demo';
@@ -49,6 +61,9 @@ export default function App() {
   const turnstileTokenRef = useRef<string | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
+
+  const [knobs, setKnobs] = useState<LabKnobs>({ ...DEFAULT_LAB_KNOBS });
+  const [shipped, setShipped] = useState<LabObject | null>(null);
 
   const getTurnstileToken = useCallback(() => turnstileTokenRef.current, []);
   const resetTurnstile = useCallback(() => {
@@ -179,6 +194,25 @@ export default function App() {
   const demoFailed =
     demo?.workflowStatus === 'failure' ||
     Object.values(demo?.nodeStatuses ?? {}).some((s) => s === 'failure');
+  const previewReady = nodeStatuses?.preview === 'success';
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(
+      `${PREVIEW_ORIGIN}/api/lab-object?preview=${previewReady ? '1' : '0'}`,
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        return (await res.json()) as LabObject;
+      })
+      .then((data) => {
+        if (!cancelled && data.hue && data.shape) setShipped(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [previewReady]);
 
   return (
     <div className="shell">
@@ -200,7 +234,7 @@ export default function App() {
           <button
             type="button"
             className="btn primary"
-            onClick={() => void startDemo()}
+            onClick={() => void startDemo(knobs)}
             disabled={demoLoading}
           >
             {demoLoading ? t.runningDemo : t.runLiveDemo}
@@ -235,6 +269,42 @@ export default function App() {
           </p>
         ) : null}
       </header>
+
+      <section className="panel" aria-labelledby="lab-heading">
+        <div className="panel-head">
+          <h2 id="lab-heading">{t.labHeading}</h2>
+        </div>
+        <p className="lab-lede">{t.labLede}</p>
+        <LabPicker
+          hue={knobs.hue}
+          shape={knobs.shape}
+          disabled={demoLoading}
+          hueLabel={t.labHue}
+          shapeLabel={t.labShape}
+          onHue={(hue: LabHue) => setKnobs((k) => ({ ...k, hue }))}
+          onShape={(shape: LabShape) => setKnobs((k) => ({ ...k, shape }))}
+        />
+        <p className="muted lab-open">{t.labShared}</p>
+        <p className="lab-open">
+          <a
+            className="btn primary"
+            href={PREVIEW_LAB_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t.labOpenStage}
+          </a>
+          {shipped ? (
+            <span className="muted">
+              {' '}
+              {shipped.hue} · {shipped.shape} · {shortSha(shipped.gitSha)}
+            </span>
+          ) : null}
+        </p>
+        {!previewReady ? (
+          <p className="muted lab-open">{t.labWaiting}</p>
+        ) : null}
+      </section>
 
       <section className="panel" aria-labelledby="deploy-heading">
         <div className="panel-head">

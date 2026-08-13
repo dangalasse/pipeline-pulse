@@ -103,17 +103,17 @@ POST /api/demo-ai-review
     id: 'preview',
     labelPt: 'Preview',
     labelEn: 'Preview',
-    jobName: 'Build',
+    jobName: 'Preview',
     explainPt:
-      'No PR, sobe um Worker de preview e comenta a URL. O botão “demo ao vivo” desta página para no build — não faz deploy.',
+      'O live-demo publica o palco (cor + forma da allowlist) no Worker de preview. Staging e produção não saem deste botão.',
     explainEn:
-      'On a PR, a preview Worker goes up and the URL is commented. The “live demo” button on this page stops at build — no deploy.',
-    yaml: `# live-demo.yml — this node is the Build job (no deploy).
-# preview.yml (PR only) is the real Workers preview:
-- name: Deploy Workers preview
-  uses: cloudflare/wrangler-action@v3
-  with:
-    command: deploy --env preview`,
+      'Live-demo ships the stage (allowlisted color + shape) to the preview Worker. Staging and production do not come from this button.',
+    yaml: `# live-demo.yml — Preview job
+- name: Pin lab knobs   # cyan|amber|violet|rose × cube|ring|bar
+- run: npm run build
+- wrangler deploy --env preview
+    --var LAB_HUE LAB_SHAPE
+- curl /api/lab-object  # smoke: hue/shape must match`,
   },
   {
     id: 'staging',
