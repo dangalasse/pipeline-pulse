@@ -53,11 +53,8 @@ a:hover {
 
 .stage {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 10.5rem;
-  gap: 0.55rem 0.85rem;
   height: 100dvh;
-  max-width: 1220px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 0.65rem 1rem 0.55rem;
   overflow: hidden;
@@ -66,17 +63,10 @@ a:hover {
 .stage-main {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   gap: 0.45rem;
-}
-
-.stage-float {
-  align-self: center;
-  justify-self: end;
-  width: 10.5rem;
-  height: 10.5rem;
-  pointer-events: none;
 }
 
 .top-bar {
@@ -922,10 +912,57 @@ a:hover {
   border-color: var(--accent-dim);
 }
 
+.snippet-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.palco {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  z-index: 2;
+  width: 7.5rem;
+  height: 7.5rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.palco-glow {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 18%;
+  bottom: 4%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at 50% 60%,
+    color-mix(in srgb, var(--accent) 38%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 48%,
+    transparent 74%
+  );
+  filter: blur(12px);
+}
+
+.palco .lab-live {
+  position: relative;
+  z-index: 1;
+  width: 7.5rem;
+  height: 7.5rem;
+}
+
+.snippet-stage .snippet-hl,
+.snippet-stage .snippet-code {
+  padding-right: 8.4rem;
+}
+
 .snippet-body {
   display: grid;
   grid-template-columns: 2.5rem 1fr;
-  flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -1018,19 +1055,20 @@ a:hover {
 }
 
 @media (max-width: 840px) {
-  .stage {
-    grid-template-columns: 1fr;
-    padding-right: 1rem;
+  .palco {
+    right: 0.45rem;
+    width: 5.4rem;
+    height: 5.4rem;
   }
 
-  .stage-float {
-    position: fixed;
-    right: 0.45rem;
-    bottom: 2.6rem;
-    top: auto;
-    width: 5.75rem;
-    height: 5.75rem;
-    z-index: 3;
+  .palco .lab-live {
+    width: 5.4rem;
+    height: 5.4rem;
+  }
+
+  .snippet-stage .snippet-hl,
+  .snippet-stage .snippet-code {
+    padding-right: 6rem;
   }
 
   .hero {

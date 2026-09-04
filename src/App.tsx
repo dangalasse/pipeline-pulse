@@ -386,13 +386,11 @@ export default function App() {
           source={draft}
           disabled={demoLoading}
           hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
+          previewLabel={t.labLive}
+          preview={<LabLive source={draft} title={t.labLive} />}
           onChange={setDraft}
         />
       </div>
-
-      <aside className="stage-float" aria-label={t.labLive}>
-        <LabLive source={draft} title={t.labLive} />
-      </aside>
     </div>
   );
 }

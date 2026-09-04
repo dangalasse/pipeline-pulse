@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { type ReactNode, useMemo, useRef, useState } from 'react';
 import {
   type LabPane,
   composeLabSource,
@@ -10,6 +10,8 @@ interface LabSnippetProps {
   source: string;
   disabled?: boolean;
   hint: string;
+  preview?: ReactNode;
+  previewLabel: string;
   onChange: (source: string) => void;
 }
 
@@ -23,6 +25,8 @@ export function LabSnippet({
   source,
   disabled,
   hint,
+  preview,
+  previewLabel,
   onChange,
 }: LabSnippetProps) {
   const [pane, setPane] = useState<LabPane>('css');
@@ -95,33 +99,41 @@ export function LabSnippet({
           {copied ? 'copied' : 'copy'}
         </button>
       </div>
-      <div className="snippet-body">
-        <pre className="snippet-gutter" aria-hidden="true" ref={gutterRef}>
-          {gutter}
-        </pre>
-        <div className="snippet-edit">
-          <pre
-            className="snippet-hl"
-            aria-hidden="true"
-            ref={hlRef}
-            // Tokens are HTML-escaped in highlightLab before this paint.
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: escaped overlay
-            dangerouslySetInnerHTML={{ __html: `${highlighted}\n` }}
-          />
-          <textarea
-            ref={editRef}
-            className="snippet-code"
-            spellCheck={false}
-            disabled={disabled}
-            value={code}
-            onScroll={syncScroll}
-            onChange={(e) =>
-              onChange(composeLabSource({ ...parts, [pane]: e.target.value }))
-            }
-            aria-label={active.file}
-            data-testid="lab-snippet"
-          />
+      <div className="snippet-stage">
+        <div className="snippet-body">
+          <pre className="snippet-gutter" aria-hidden="true" ref={gutterRef}>
+            {gutter}
+          </pre>
+          <div className="snippet-edit">
+            <pre
+              className="snippet-hl"
+              aria-hidden="true"
+              ref={hlRef}
+              // Tokens are HTML-escaped in highlightLab before this paint.
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: escaped overlay
+              dangerouslySetInnerHTML={{ __html: `${highlighted}\n` }}
+            />
+            <textarea
+              ref={editRef}
+              className="snippet-code"
+              spellCheck={false}
+              disabled={disabled}
+              value={code}
+              onScroll={syncScroll}
+              onChange={(e) =>
+                onChange(composeLabSource({ ...parts, [pane]: e.target.value }))
+              }
+              aria-label={active.file}
+              data-testid="lab-snippet"
+            />
+          </div>
         </div>
+        {preview ? (
+          <aside className="palco" aria-label={previewLabel}>
+            <span className="palco-glow" aria-hidden="true" />
+            {preview}
+          </aside>
+        ) : null}
       </div>
       <p className="snippet-hint">{hint}</p>
     </div>
