@@ -400,6 +400,10 @@ function honeypotReply(pathname: string): Response {
   const pick =
     HONEYPOT_REPLIES[Math.abs(hashStr(pathname)) % HONEYPOT_REPLIES.length] ??
     HONEYPOT_REPLIES[0];
+  const headers = new Headers({
+    'Cache-Control': 'no-store',
+  });
+  applySecurityHeaders(headers, false);
   return Response.json(
     {
       ok: false,
@@ -409,10 +413,7 @@ function honeypotReply(pathname: string): Response {
     },
     {
       status: 404,
-      headers: {
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
+      headers,
     },
   );
 }
@@ -455,16 +456,15 @@ async function serveAssets(request: Request, env: Env): Promise<Response> {
   const res = await env.ASSETS.fetch(request);
   const ct = res.headers.get('content-type') ?? '';
   if (ct && !ct.includes('application/octet-stream')) {
-    return withFrameAncestors(res, ct);
+    return withSecurityHeaders(res, ct);
   }
   const guessed = guessMime(url.pathname);
   if (!guessed) {
-    return res;
+    return withSecurityHeaders(res);
   }
   const headers = new Headers(res.headers);
   headers.set('Content-Type', guessed);
-  headers.set('X-Content-Type-Options', 'nosniff');
-  applyFrameAncestors(headers, guessed);
+  applySecurityHeaders(headers, guessed.includes('text/html'));
   return new Response(res.body, {
     status: res.status,
     statusText: res.statusText,
@@ -472,15 +472,23 @@ async function serveAssets(request: Request, env: Env): Promise<Response> {
   });
 }
 
-function applyFrameAncestors(headers: Headers, contentType: string): void {
-  if (!contentType.includes('text/html')) return;
-  headers.set('Content-Security-Policy', `frame-ancestors ${FRAME_ANCESTORS}`);
+function applySecurityHeaders(headers: Headers, html: boolean): void {
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (html) {
+    headers.set('X-Frame-Options', 'SAMEORIGIN');
+    headers.set(
+      'Content-Security-Policy',
+      `frame-ancestors ${FRAME_ANCESTORS}`,
+    );
+  }
 }
 
-function withFrameAncestors(res: Response, contentType: string): Response {
-  if (!contentType.includes('text/html')) return res;
+function withSecurityHeaders(res: Response, contentType?: string): Response {
   const headers = new Headers(res.headers);
-  applyFrameAncestors(headers, contentType);
+  const ct = contentType ?? headers.get('content-type') ?? '';
+  applySecurityHeaders(headers, ct.includes('text/html'));
   return new Response(res.body, {
     status: res.status,
     statusText: res.statusText,
@@ -514,7 +522,7 @@ export default {
       return honeypotReply(path);
     }
     if (url.pathname.startsWith('/api/')) {
-      return app.fetch(request, env, ctx);
+      return withSecurityHeaders(await app.fetch(request, env, ctx));
     }
     return serveAssets(request, env);
   },
