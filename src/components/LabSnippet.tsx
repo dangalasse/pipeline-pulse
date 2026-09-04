@@ -16,7 +16,7 @@ interface LabSnippetProps {
 const PANES: { id: LabPane; label: string; file: string }[] = [
   { id: 'html', label: 'HTML', file: 'object.html' },
   { id: 'css', label: 'CSS', file: 'object.css' },
-  { id: 'js', label: 'JavaScript', file: 'object.js' },
+  { id: 'js', label: 'JS', file: 'object.js' },
 ];
 
 export function LabSnippet({
@@ -26,6 +26,7 @@ export function LabSnippet({
   onChange,
 }: LabSnippetProps) {
   const [pane, setPane] = useState<LabPane>('css');
+  const [copied, setCopied] = useState(false);
   const editRef = useRef<HTMLTextAreaElement | null>(null);
   const hlRef = useRef<HTMLPreElement | null>(null);
   const gutterRef = useRef<HTMLPreElement | null>(null);
@@ -51,10 +52,23 @@ export function LabSnippet({
     }
   };
 
+  const copyPane = () => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    });
+  };
+
   return (
     <div className="snippet">
-      <div className="snippet-titlebar">
-        <div className="snippet-tabs" role="tablist" aria-label="object.html">
+      <div className="snippet-chrome">
+        <span className="snippet-dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <div className="snippet-tabs" role="tablist" aria-label="object">
           {PANES.map((item) => (
             <button
               key={item.id}
@@ -62,15 +76,24 @@ export function LabSnippet({
               role="tab"
               aria-selected={pane === item.id}
               id={`lab-tab-${item.id}`}
-              className={`snippet-tab${pane === item.id ? ' is-on' : ''}`}
+              className={`snippet-tab snippet-tab-${item.id}${pane === item.id ? ' is-on' : ''}`}
               data-testid={`lab-tab-${item.id}`}
               onClick={() => setPane(item.id)}
             >
+              <span className="snippet-lang" aria-hidden="true" />
               {item.label}
             </button>
           ))}
         </div>
-        <span className="snippet-file mono">{active.file}</span>
+        <span className="snippet-file">{active.file}</span>
+        <button
+          type="button"
+          className="snippet-copy"
+          onClick={copyPane}
+          disabled={disabled}
+        >
+          {copied ? 'copied' : 'copy'}
+        </button>
       </div>
       <div className="snippet-body">
         <pre className="snippet-gutter" aria-hidden="true" ref={gutterRef}>
@@ -100,12 +123,7 @@ export function LabSnippet({
           />
         </div>
       </div>
-      <div className="snippet-status">
-        <span>{active.label}</span>
-        <span className="snippet-status-hint">{hint}</span>
-        <span>UTF-8</span>
-        <span>Spaces: 2</span>
-      </div>
+      <p className="snippet-hint">{hint}</p>
     </div>
   );
 }

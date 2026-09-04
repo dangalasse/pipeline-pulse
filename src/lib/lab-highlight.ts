@@ -7,17 +7,19 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
-/** Cheap VS Code Dark+ tokens — editor overlay only, not a full parser. */
+/** Soft tokens for the native snippet pane — not a full parser. */
 export function highlightLab(code: string, pane: LabPane): string {
   const e = escapeHtml(code);
   if (pane === 'css') {
     return e
       .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="tok-cmt">$1</span>')
+      .replace(/(\.[a-zA-Z_-][\w-]*)/g, '<span class="tok-tag">$1</span>')
       .replace(/#[0-9A-Fa-f]{3,8}\b/g, '<span class="tok-num">$&</span>')
       .replace(
-        /(\b(?:from|in|srgb|deg|infinite|linear|none)\b)/g,
+        /(\b(?:from|in|srgb|infinite|linear|none|absolute|relative|grid|center)\b)/g,
         '<span class="tok-key">$1</span>',
       )
+      .replace(/(@[\w-]+)/g, '<span class="tok-key">$1</span>')
       .replace(/(\b[\w-]+)(?=\s*:)/g, '<span class="tok-attr">$1</span>');
   }
   if (pane === 'html') {
