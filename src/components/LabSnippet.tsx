@@ -63,11 +63,6 @@ export function LabSnippet({
   return (
     <div className="snippet">
       <div className="snippet-chrome">
-        <span className="snippet-dots" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
         <div className="snippet-tabs" role="tablist" aria-label="object">
           {PANES.map((item) => (
             <button
@@ -85,7 +80,6 @@ export function LabSnippet({
             </button>
           ))}
         </div>
-        <span className="snippet-file">{active.file}</span>
         <button
           type="button"
           className="snippet-copy"

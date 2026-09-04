@@ -59,7 +59,6 @@ export default function App() {
 
   const [draft, setDraft] = useState(DEFAULT_LAB_SOURCE);
   const [shippedSha, setShippedSha] = useState<string | null>(null);
-  const seededRef = useRef(false);
 
   const getTurnstileToken = useCallback(() => turnstileTokenRef.current, []);
   const resetTurnstile = useCallback(() => {
@@ -204,10 +203,9 @@ export default function App() {
       .then((data) => {
         if (cancelled || !data.source) return;
         setShippedSha(data.sourceSha);
-        if (!seededRef.current || previewReady) {
-          setDraft(data.source);
-          seededRef.current = true;
-        }
+        // The local editor keeps its own designed default; only a finished
+        // Preview job replaces the draft with the shared palco source.
+        if (previewReady) setDraft(data.source);
       })
       .catch(() => undefined);
     return () => {
@@ -385,9 +383,6 @@ export default function App() {
         <div className="studio">
           <aside className="vitrine" aria-label={t.labLive}>
             <span className="vitrine-kicker">{t.palcoKicker}</span>
-            <span className="vitrine-halo" aria-hidden="true" />
-            <span className="vitrine-ring" aria-hidden="true" />
-            <span className="vitrine-plinth" aria-hidden="true" />
             <LabLive source={draft} title={t.labLive} />
           </aside>
           <LabSnippet

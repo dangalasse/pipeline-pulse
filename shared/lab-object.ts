@@ -11,46 +11,43 @@ export const PREVIEW_LAB_URL = `${PREVIEW_ORIGIN}/lab`;
 
 export const PREVIEW_LAB_EMBED_URL = `${PREVIEW_LAB_URL}?embed=1`;
 
-/** Cyan cube — rest pose shows three faces so it never reads as a flat tile. */
+/** Mint tile in the site's own language — no 3D tricks, reads well at rest. */
 export const DEFAULT_LAB_SOURCE = `<style>
-  :root { --lab: #5eead4; }
+  :root { --lab: #5eead4; color-scheme: dark; }
   html, body {
     margin: 0; width: 100%; height: 100%;
     background: transparent;
     display: grid; place-items: center;
-    perspective: 900px;
   }
   .cube {
-    width: 96px; height: 96px;
-    position: relative;
-    transform-style: preserve-3d;
-    transform: rotateX(-26deg) rotateY(-38deg);
-    animation: spin 14s linear infinite;
+    width: 128px; height: 128px;
+    display: grid; place-items: center;
+    border: 2px solid color-mix(in srgb, var(--lab) 65%, #04110c);
+    border-radius: 22px;
+    background: linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--lab) 30%, #0a1512),
+      color-mix(in srgb, var(--lab) 8%, #060b09) 70%
+    );
+    box-shadow:
+      7px 7px 0 color-mix(in srgb, var(--lab) 18%, #020604),
+      inset 0 1px 0 color-mix(in srgb, var(--lab) 45%, transparent);
+    animation: hover 6s ease-in-out infinite;
   }
-  .face {
-    position: absolute; inset: 0;
-    border: 1px solid color-mix(in srgb, var(--lab) 50%, white);
-    box-shadow: inset 0 0 22px color-mix(in srgb, var(--lab) 22%, transparent);
+  .mark {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    background: var(--lab);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--lab) 55%, transparent);
+    animation: beat 3s ease-in-out infinite;
   }
-  .f { transform: translateZ(48px); background: color-mix(in srgb, var(--lab) 88%, #071410); }
-  .k { transform: rotateY(180deg) translateZ(48px); background: color-mix(in srgb, var(--lab) 36%, #030806); }
-  .l { transform: rotateY(-90deg) translateZ(48px); background: color-mix(in srgb, var(--lab) 55%, #04110c); }
-  .r { transform: rotateY(90deg) translateZ(48px); background: color-mix(in srgb, var(--lab) 72%, #0a1c16); }
-  .t { transform: rotateX(90deg) translateZ(48px); background: color-mix(in srgb, var(--lab) 92%, white); }
-  .b { transform: rotateX(-90deg) translateZ(48px); background: color-mix(in srgb, var(--lab) 28%, #020604); }
-  @keyframes spin {
-    from { transform: rotateX(-26deg) rotateY(-38deg); }
-    to { transform: rotateX(-26deg) rotateY(322deg); }
-  }
+  @keyframes hover { 50% { transform: translateY(-7px); } }
+  @keyframes beat { 50% { transform: scale(0.88) rotate(45deg); } }
   @media (prefers-reduced-motion: reduce) {
-    .cube { animation: none; transform: rotateX(-26deg) rotateY(-38deg); }
+    .cube, .mark { animation: none; }
   }
 </style>
-<div class="cube" id="obj">
-  <span class="face f"></span><span class="face k"></span>
-  <span class="face l"></span><span class="face r"></span>
-  <span class="face t"></span><span class="face b"></span>
-</div>
+<div class="cube" id="obj"><span class="mark"></span></div>
 <script>
   // Recolor from the CSS pane (:root { --lab: #5eead4; })
   const lab = getComputedStyle(document.documentElement)
@@ -151,5 +148,5 @@ export function sourceToSrcDoc(source: string): string {
   if (/^<!doctype html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) {
     return source;
   }
-  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;background:transparent!important;display:grid;place-items:center;perspective:900px}</style></head><body>${source}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>:root{color-scheme:dark}html,body{margin:0;width:100%;height:100%;background:transparent!important;display:grid;place-items:center}</style></head><body>${source}</body></html>`;
 }
