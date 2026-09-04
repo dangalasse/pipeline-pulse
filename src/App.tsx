@@ -216,171 +216,183 @@ export default function App() {
   }, [previewReady]);
 
   return (
-    <div className="shell">
+    <div className="stage">
       <div className="atmosphere" aria-hidden="true" />
-      <div className="top-bar">
-        <LocaleToggle
-          locale={locale}
-          toggleHref={toggleHref}
-          otherLabel={otherLabel}
-          currentLabel={currentLabel}
-          switchLanguage={t.switchLanguage}
-        />
-      </div>
-      <header className="hero">
-        <p className="eyebrow">{t.eyebrow}</p>
-        <h1 className="brand">{t.title}</h1>
-        <p className="lede">{t.lede}</p>
-        <div className="cta-row">
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => void startDemo(draft)}
-            disabled={demoLoading}
-          >
-            {demoLoading ? t.runningDemo : t.runLiveDemo}
-          </button>
-          <a
-            className="btn ghost"
-            href={actionsUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t.viewActions}
-          </a>
-          <a
-            className="btn ghost"
-            href={`https://github.com/${meta.githubRepo}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t.repository}
-          </a>
-        </div>
-        <div className="turnstile-wrap" aria-label={t.humanCheck}>
-          <div ref={hostRef} />
-        </div>
-        {demoError ? <p className="demo-error">{demoError}</p> : null}
-        {demo?.githubRunUrl ? (
-          <p className="demo-run-link">
-            <span className="muted">{t.lastRunLabel}: </span>
-            <a href={demo.githubRunUrl} target="_blank" rel="noreferrer">
-              {t.openGithubRun} →
-            </a>
-          </p>
-        ) : null}
-      </header>
-
-      <LabLive source={draft} title={t.labLive} />
-      <p className="lab-inline-lede muted">{t.labLede}</p>
-      <LabSnippet
-        source={draft}
-        disabled={demoLoading}
-        label={t.labSnippet}
-        hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
-        onChange={setDraft}
-      />
-
-      <section className="panel" aria-labelledby="deploy-heading">
-        <div className="panel-head">
-          <h2 id="deploy-heading">{t.thisDeploy}</h2>
-          <span className={`pill env-${meta.env}`}>{meta.env}</span>
-        </div>
-        <dl className="meta-grid">
-          <div>
-            <dt>{t.gitSha}</dt>
-            <dd>
+      <div className="stage-main">
+        <header className="hero">
+          <div className="hero-copy">
+            <p className="eyebrow">{t.eyebrow}</p>
+            <h1 className="brand">{t.title}</h1>
+            <p className="lede">{t.lede}</p>
+          </div>
+          <div className="hero-actions">
+            <LocaleToggle
+              locale={locale}
+              toggleHref={toggleHref}
+              otherLabel={otherLabel}
+              currentLabel={currentLabel}
+              switchLanguage={t.switchLanguage}
+            />
+            <div className="cta-row">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => void startDemo(draft)}
+                disabled={demoLoading}
+              >
+                {demoLoading ? t.runningDemo : t.runLiveDemo}
+              </button>
               <a
-                href={commitUrl}
+                className="btn ghost"
+                href={actionsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mono"
               >
-                {sha}
+                {t.viewActions}
               </a>
-            </dd>
-          </div>
-          <div>
-            <dt>{t.builtAt}</dt>
-            <dd className="mono">{meta.buildTime}</dd>
-          </div>
-          <div>
-            <dt>{t.edgeClock}</dt>
-            <dd className="mono">{meta.edgeTime}</dd>
-          </div>
-          <div>
-            <dt>{t.cfRay}</dt>
-            <dd className="mono">{meta.region ?? '—'}</dd>
-          </div>
-        </dl>
-        {meta.githubRunUrl ? (
-          <p className="run-link">
-            <a href={meta.githubRunUrl} target="_blank" rel="noreferrer">
-              {t.openRunLink}
-            </a>
-          </p>
-        ) : null}
-      </section>
-
-      <section className="panel panel-canvas" aria-labelledby="belt-heading">
-        <h2 id="belt-heading">{t.conveyorHeading}</h2>
-        <PipelineCanvas
-          locale={locale}
-          t={t}
-          nodeStatuses={nodeStatuses}
-          nodeDetails={nodeDetails}
-          runId={demo?.id}
-          logLoading={logLoading}
-          nodeLog={nodeLog}
-          onFetchLog={fetchNodeLog}
-          onClearLog={clearNodeLog}
-        />
-        {demoFailed ? (
-          <div className="ai-review-block">
-            <p className="demo-failed-label">{t.demoFailed}</p>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => void requestAiReview()}
-              disabled={aiLoading}
-            >
-              {aiLoading ? t.aiReviewing : t.aiReview}
-            </button>
-            {aiReview ? (
-              <div className="ai-review-result">
-                <h3>{t.aiReviewTitle}</h3>
-                {aiReview.summary ? (
-                  <p>
-                    <strong>{t.aiReviewTitle}:</strong> {aiReview.summary}
-                  </p>
-                ) : null}
-                {aiReview.likelyCause ? (
-                  <p>
-                    <strong>Cause:</strong> {aiReview.likelyCause}
-                  </p>
-                ) : null}
-                {aiReview.suggestedFix ? (
-                  <p>
-                    <strong>Fix:</strong> {aiReview.suggestedFix}
-                  </p>
-                ) : null}
-                {aiReview.error || aiReview.message ? (
-                  <p className="demo-error">
-                    {aiReview.error ?? aiReview.message}
-                  </p>
-                ) : null}
-              </div>
+              <a
+                className="btn ghost"
+                href={`https://github.com/${meta.githubRepo}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t.repository}
+              </a>
+            </div>
+            <div className="turnstile-wrap" aria-label={t.humanCheck}>
+              <div ref={hostRef} />
+            </div>
+            {demoError ? <p className="demo-error">{demoError}</p> : null}
+            {demo?.githubRunUrl ? (
+              <p className="demo-run-link">
+                <span className="muted">{t.lastRunLabel}: </span>
+                <a href={demo.githubRunUrl} target="_blank" rel="noreferrer">
+                  {t.openGithubRun} →
+                </a>
+              </p>
             ) : null}
           </div>
-        ) : null}
-      </section>
+        </header>
 
-      <footer className="foot">
-        <span>{t.footerSecrets}</span>
-        <span className="mono">
-          {state.status === 'loading' ? t.probingEdge : t.edgeOk}
-        </span>
-      </footer>
+        <section className="panel panel-canvas" aria-labelledby="belt-heading">
+          <h2 id="belt-heading">{t.conveyorHeading}</h2>
+          <PipelineCanvas
+            locale={locale}
+            t={t}
+            nodeStatuses={nodeStatuses}
+            nodeDetails={nodeDetails}
+            runId={demo?.id}
+            logLoading={logLoading}
+            nodeLog={nodeLog}
+            onFetchLog={fetchNodeLog}
+            onClearLog={clearNodeLog}
+          />
+          {demoFailed ? (
+            <div className="ai-review-block">
+              <p className="demo-failed-label">{t.demoFailed}</p>
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() => void requestAiReview()}
+                disabled={aiLoading}
+              >
+                {aiLoading ? t.aiReviewing : t.aiReview}
+              </button>
+              {aiReview ? (
+                <div className="ai-review-result">
+                  <h3>{t.aiReviewTitle}</h3>
+                  {aiReview.summary ? (
+                    <p>
+                      <strong>{t.aiReviewTitle}:</strong> {aiReview.summary}
+                    </p>
+                  ) : null}
+                  {aiReview.likelyCause ? (
+                    <p>
+                      <strong>Cause:</strong> {aiReview.likelyCause}
+                    </p>
+                  ) : null}
+                  {aiReview.suggestedFix ? (
+                    <p>
+                      <strong>Fix:</strong> {aiReview.suggestedFix}
+                    </p>
+                  ) : null}
+                  {aiReview.error || aiReview.message ? (
+                    <p className="demo-error">
+                      {aiReview.error ?? aiReview.message}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="stamp" aria-labelledby="deploy-heading">
+          <div className="stamp-head">
+            <h2 id="deploy-heading">{t.thisDeploy}</h2>
+            <span className={`pill env-${meta.env}`}>{meta.env}</span>
+          </div>
+          <dl className="stamp-grid">
+            <div>
+              <dt>{t.gitSha}</dt>
+              <dd>
+                <a
+                  href={commitUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mono"
+                >
+                  {sha}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt>{t.builtAt}</dt>
+              <dd className="mono">{meta.buildTime}</dd>
+            </div>
+            <div>
+              <dt>{t.edgeClock}</dt>
+              <dd className="mono">{meta.edgeTime}</dd>
+            </div>
+            <div>
+              <dt>{t.cfRay}</dt>
+              <dd className="mono">
+                {meta.region?.startsWith('offline:')
+                  ? '—'
+                  : (meta.region ?? '—')}
+              </dd>
+            </div>
+          </dl>
+          {meta.githubRunUrl ? (
+            <a
+              className="stamp-run"
+              href={meta.githubRunUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t.openRunLink}
+            </a>
+          ) : null}
+          <p className="stamp-foot muted">
+            <span>{t.footerSecrets}</span>
+            <span className="mono">
+              {state.status === 'loading' ? t.probingEdge : t.edgeOk}
+            </span>
+          </p>
+        </section>
+
+        <p className="lab-inline-lede muted">{t.labLede}</p>
+        <LabSnippet
+          source={draft}
+          disabled={demoLoading}
+          hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
+          onChange={setDraft}
+        />
+      </div>
+
+      <aside className="stage-float" aria-label={t.labLive}>
+        <LabLive source={draft} title={t.labLive} />
+      </aside>
     </div>
   );
 }

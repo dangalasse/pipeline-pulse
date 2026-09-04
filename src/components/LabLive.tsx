@@ -3,12 +3,13 @@ import { sourceToSrcDoc } from '../../shared/lab-object';
 interface LabLiveProps {
   source: string;
   title: string;
+  className?: string;
 }
 
-export function LabLive({ source, title }: LabLiveProps) {
+export function LabLive({ source, title, className }: LabLiveProps) {
   return (
     <iframe
-      className="lab-live"
+      className={className ? `lab-live ${className}` : 'lab-live'}
       title={title}
       data-testid="lab-stage"
       sandbox="allow-scripts"

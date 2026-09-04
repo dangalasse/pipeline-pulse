@@ -138,6 +138,12 @@ jobs:
           import os
           from pathlib import Path
           raw = Path('/tmp/lab-pending.html').read_bytes()
+          # wrangler kv key get --text always appends a POSIX newline that is not in KV
+          if raw.endswith(b'\r\n'):
+              raw = raw[:-2]
+          elif raw.endswith(b'\n'):
+              raw = raw[:-1]
+          Path('/tmp/lab-pending.html').write_bytes(raw)
           if not raw.strip():
               raise SystemExit('lab:pending is empty')
           if len(raw) > 8192:

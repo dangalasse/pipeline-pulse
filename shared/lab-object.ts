@@ -43,8 +43,11 @@ export const DEFAULT_LAB_SOURCE = `<style>
   <span class="face t"></span><span class="face b"></span>
 </div>
 <script>
-  // tint via --lab; edit the hex above or set it here
-  document.documentElement.style.setProperty('--lab', '#5eead4');
+  // Recolor from the CSS pane (:root { --lab: #5eead4; })
+  const lab = getComputedStyle(document.documentElement)
+    .getPropertyValue('--lab')
+    .trim();
+  if (lab) document.documentElement.style.setProperty('--lab', lab);
 </script>
 `;
 
@@ -95,11 +98,49 @@ export async function hashLabSource(source: string): Promise<string> {
     .slice(0, 16);
 }
 
+export type LabPane = 'html' | 'css' | 'js';
+
+export interface LabParts {
+  html: string;
+  css: string;
+  js: string;
+}
+
+/** Split a snippet into the three editor panes (style/script extracted). */
+export function splitLabSource(source: string): LabParts {
+  let css = '';
+  let js = '';
+  const html = source
+    .replace(/<style\b[^>]*>([\s\S]*?)<\/style>\n?/gi, (_m, body: string) => {
+      css = css ? `${css}\n${body}` : body;
+      return '';
+    })
+    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>\n?/gi, (_m, body: string) => {
+      js = js ? `${js}\n${body}` : body;
+      return '';
+    });
+  return { html, css, js };
+}
+
+/** Reassemble panes into the snippet stored in KV / posted to demo-run. */
+export function composeLabSource(parts: LabParts): string {
+  let out = '';
+  if (parts.css.length > 0) {
+    out += `<style>${parts.css}</style>\n`;
+  }
+  out += parts.html;
+  if (parts.js.length > 0) {
+    if (out.length > 0 && !out.endsWith('\n')) out += '\n';
+    out += `<script>${parts.js}</script>\n`;
+  }
+  return out;
+}
+
 /** Wrap a fragment so srcdoc always has a document; leave full HTML alone. */
 export function sourceToSrcDoc(source: string): string {
   const trimmed = source.trim();
   if (/^<!doctype html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) {
     return source;
   }
-  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;min-height:100%;background:transparent;display:grid;place-items:center}</style></head><body>${source}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;background:transparent!important;display:grid;place-items:center}</style></head><body>${source}</body></html>`;
 }

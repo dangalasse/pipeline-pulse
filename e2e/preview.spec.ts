@@ -17,9 +17,13 @@ test.describe('preview palco', () => {
     await expect(page.getByTestId('lab-stage')).toBeVisible();
     const editor = page.getByTestId('lab-snippet');
     await expect(editor).toBeVisible();
-    await editor.fill(
-      '<style>:root{--lab:#fbbf24}</style><div style="width:80px;height:80px;background:var(--lab)"></div>',
-    );
+    await page.getByTestId('lab-tab-css').click();
+    const css = await editor.inputValue();
+    await editor.fill(css.replaceAll('#5eead4', '#fbbf24'));
+    await page.getByTestId('lab-tab-html').click();
+    await expect(editor).toHaveValue(/class="cube"/);
+    await page.getByTestId('lab-tab-js').click();
+    await expect(editor).toHaveValue(/setProperty/);
     await expect(page.getByTestId('lab-stage')).toBeVisible();
   });
 

@@ -1,51 +1,111 @@
+import { useMemo, useRef, useState } from 'react';
+import {
+  type LabPane,
+  composeLabSource,
+  splitLabSource,
+} from '../../shared/lab-object';
+import { highlightLab } from '../lib/lab-highlight';
+
 interface LabSnippetProps {
   source: string;
   disabled?: boolean;
-  label: string;
   hint: string;
   onChange: (source: string) => void;
 }
 
+const PANES: { id: LabPane; label: string; file: string }[] = [
+  { id: 'html', label: 'HTML', file: 'object.html' },
+  { id: 'css', label: 'CSS', file: 'object.css' },
+  { id: 'js', label: 'JavaScript', file: 'object.js' },
+];
+
 export function LabSnippet({
   source,
   disabled,
-  label,
   hint,
   onChange,
 }: LabSnippetProps) {
-  const lines = source.split(/\n/).length;
-  const gutter = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  const [pane, setPane] = useState<LabPane>('css');
+  const editRef = useRef<HTMLTextAreaElement | null>(null);
+  const hlRef = useRef<HTMLPreElement | null>(null);
+  const gutterRef = useRef<HTMLPreElement | null>(null);
+
+  const parts = useMemo(() => splitLabSource(source), [source]);
+  const code = parts[pane];
+  const active = PANES.find((p) => p.id === pane) ?? PANES[1];
+  const lines = Math.max(code.split('\n').length, 1);
+  const gutter = Array.from({ length: lines }, (_, i) => String(i + 1)).join(
+    '\n',
+  );
+  const highlighted = useMemo(() => highlightLab(code, pane), [code, pane]);
+
+  const syncScroll = () => {
+    const edit = editRef.current;
+    if (!edit) return;
+    if (hlRef.current) {
+      hlRef.current.scrollTop = edit.scrollTop;
+      hlRef.current.scrollLeft = edit.scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = edit.scrollTop;
+    }
+  };
 
   return (
     <div className="snippet">
-      <div className="snippet-bar">
-        <span className="snippet-dots" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="snippet-pills">
-          <span className="snippet-pill">HTML</span>
-          <span className="snippet-pill is-on">CSS</span>
-          <span className="snippet-pill is-on">JS</span>
-        </span>
-        <span className="snippet-meta mono">{label}</span>
+      <div className="snippet-titlebar">
+        <div className="snippet-tabs" role="tablist" aria-label="object.html">
+          {PANES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={pane === item.id}
+              id={`lab-tab-${item.id}`}
+              className={`snippet-tab${pane === item.id ? ' is-on' : ''}`}
+              data-testid={`lab-tab-${item.id}`}
+              onClick={() => setPane(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <span className="snippet-file mono">{active.file}</span>
       </div>
       <div className="snippet-body">
-        <pre className="snippet-gutter" aria-hidden="true">
-          {gutter.join('\n')}
+        <pre className="snippet-gutter" aria-hidden="true" ref={gutterRef}>
+          {gutter}
         </pre>
-        <textarea
-          className="snippet-code"
-          spellCheck={false}
-          disabled={disabled}
-          value={source}
-          onChange={(e) => onChange(e.target.value)}
-          aria-label={label}
-          data-testid="lab-snippet"
-        />
+        <div className="snippet-edit">
+          <pre
+            className="snippet-hl"
+            aria-hidden="true"
+            ref={hlRef}
+            // Tokens are HTML-escaped in highlightLab before this paint.
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: escaped overlay
+            dangerouslySetInnerHTML={{ __html: `${highlighted}\n` }}
+          />
+          <textarea
+            ref={editRef}
+            className="snippet-code"
+            spellCheck={false}
+            disabled={disabled}
+            value={code}
+            onScroll={syncScroll}
+            onChange={(e) =>
+              onChange(composeLabSource({ ...parts, [pane]: e.target.value }))
+            }
+            aria-label={active.file}
+            data-testid="lab-snippet"
+          />
+        </div>
       </div>
-      <p className="snippet-hint muted">{hint}</p>
+      <div className="snippet-status">
+        <span>{active.label}</span>
+        <span className="snippet-status-hint">{hint}</span>
+        <span>UTF-8</span>
+        <span>Spaces: 2</span>
+      </div>
     </div>
   );
 }
