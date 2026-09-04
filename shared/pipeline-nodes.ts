@@ -159,6 +159,42 @@ deploy-production:
 
 export const NODE_ORDER: NodeId[] = PIPELINE_NODES.map((n) => n.id);
 
+/**
+ * Graph placement for the canvas — columns advance left→right like GitHub Actions;
+ * Staging and Prod share the last column (branch after Preview), matching deploy.yml.
+ */
+export interface NodeLayout {
+  id: NodeId;
+  col: number;
+  row: number;
+  rowSpan?: number;
+}
+
+export const PIPELINE_LAYOUT: NodeLayout[] = [
+  { id: 'push', col: 0, row: 0, rowSpan: 2 },
+  { id: 'ci', col: 1, row: 0, rowSpan: 2 },
+  { id: 'security', col: 2, row: 0, rowSpan: 2 },
+  { id: 'test', col: 3, row: 0, rowSpan: 2 },
+  { id: 'ai-review', col: 4, row: 0, rowSpan: 2 },
+  { id: 'preview', col: 5, row: 0, rowSpan: 2 },
+  { id: 'staging', col: 6, row: 0 },
+  { id: 'prod', col: 6, row: 1 },
+];
+
+export const PIPELINE_COLS = 7;
+export const PIPELINE_ROWS = 2;
+
+/** needs-style edges. Preview forks to Staging | Prod like deploy.yml's gate. */
+export const PIPELINE_EDGES: { from: NodeId; to: NodeId }[] = [
+  { from: 'push', to: 'ci' },
+  { from: 'ci', to: 'security' },
+  { from: 'security', to: 'test' },
+  { from: 'test', to: 'ai-review' },
+  { from: 'ai-review', to: 'preview' },
+  { from: 'preview', to: 'staging' },
+  { from: 'preview', to: 'prod' },
+];
+
 export function labelFor(node: PipelineNode, english: boolean): string {
   return english ? node.labelEn : node.labelPt;
 }

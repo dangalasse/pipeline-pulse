@@ -1,4 +1,10 @@
-import { type TransitionEvent, useState } from 'react';
+import {
+  type TransitionEvent,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type {
   NodeDetailsMap,
   NodeRunDetail,
@@ -7,7 +13,11 @@ import {
   NODE_ORDER,
   type NodeId,
   type NodeStatus,
+  PIPELINE_COLS,
+  PIPELINE_EDGES,
+  PIPELINE_LAYOUT,
   PIPELINE_NODES,
+  PIPELINE_ROWS,
   type PipelineNode,
   explainFor,
   labelFor,
@@ -26,6 +36,12 @@ interface PipelineCanvasProps {
   nodeLog?: NodeLogResult | null;
   onFetchLog?: (nodeId: NodeId) => void;
   onClearLog?: () => void;
+}
+
+interface WirePath {
+  key: string;
+  d: string;
+  active: boolean;
 }
 
 function statusLabel(t: UiCopy, status: NodeStatus): string {
@@ -63,18 +79,42 @@ function formatDuration(
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;
 }
 
-function Edge({ animated }: { animated: boolean }) {
+/** Rounded orthogonal path — horizontal out, vertical jog, horizontal in. */
+function orthogonalPath(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): string {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (Math.abs(dy) < 0.5) {
+    return `M ${x1} ${y1} H ${x2}`;
+  }
+  // Narrow gaps: cubic looks cleaner than a crushed elbow.
+  if (Math.abs(dx) < 28) {
+    const c = Math.max(Math.abs(dx) * 0.55, 14);
+    return `M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`;
+  }
+  const midX = x1 + dx * 0.5;
+  const radius = Math.min(10, Math.abs(dy) / 2, Math.abs(dx) / 2 - 1);
+  const dir = dy > 0 ? 1 : -1;
+  return [
+    `M ${x1} ${y1}`,
+    `H ${midX - radius}`,
+    `Q ${midX} ${y1} ${midX} ${y1 + dir * radius}`,
+    `V ${y2 - dir * radius}`,
+    `Q ${midX} ${y2} ${midX + radius} ${y2}`,
+    `H ${x2}`,
+  ].join(' ');
+}
+
+function edgeActive(from: NodeStatus, to: NodeStatus): boolean {
   return (
-    <svg className="canvas-edge" viewBox="0 0 48 24" aria-hidden="true">
-      <line
-        x1="0"
-        y1="12"
-        x2="40"
-        y2="12"
-        className={`edge-line${animated ? ' edge-line--active' : ''}`}
-      />
-      <polygon points="40,8 48,12 40,16" className="edge-arrow" />
-    </svg>
+    from === 'success' ||
+    from === 'running' ||
+    to === 'running' ||
+    to === 'pending'
   );
 }
 
@@ -212,6 +252,11 @@ export function PipelineCanvas({
 }: PipelineCanvasProps) {
   const [selected, setSelected] = useState<NodeId | null>(null);
   const [open, setOpen] = useState(false);
+  const [wires, setWires] = useState<WirePath[]>([]);
+  const graphRef = useRef<HTMLDivElement | null>(null);
+  const nodeRefs = useRef<Partial<Record<NodeId, HTMLButtonElement | null>>>(
+    {},
+  );
   const english = isEnglish(locale);
   const selectedNode = PIPELINE_NODES.find((n) => n.id === selected);
 
@@ -238,43 +283,124 @@ export function PipelineCanvas({
     setSelected(null);
   };
 
+  const paintWires = useCallback(() => {
+    const root = graphRef.current;
+    if (!root) return;
+    const rootBox = root.getBoundingClientRect();
+    const next: WirePath[] = [];
+
+    for (const edge of PIPELINE_EDGES) {
+      const fromEl = nodeRefs.current[edge.from];
+      const toEl = nodeRefs.current[edge.to];
+      if (!fromEl || !toEl) continue;
+      const fromPort = fromEl.querySelector('.node-port-out');
+      const toPort = toEl.querySelector('.node-port-in');
+      const from = (fromPort ?? fromEl).getBoundingClientRect();
+      const to = (toPort ?? toEl).getBoundingClientRect();
+      const x1 = from.left + from.width / 2 - rootBox.left;
+      const y1 = from.top + from.height / 2 - rootBox.top;
+      const x2 = to.left + to.width / 2 - rootBox.left;
+      const y2 = to.top + to.height / 2 - rootBox.top;
+      const fromStatus: NodeStatus = nodeStatuses?.[edge.from] ?? 'idle';
+      const toStatus: NodeStatus = nodeStatuses?.[edge.to] ?? 'idle';
+      next.push({
+        key: `${edge.from}-${edge.to}`,
+        d: orthogonalPath(x1, y1, x2, y2),
+        active: edgeActive(fromStatus, toStatus),
+      });
+    }
+    setWires(next);
+  }, [nodeStatuses]);
+
+  useLayoutEffect(() => {
+    paintWires();
+    const root = graphRef.current;
+    if (!root || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => paintWires());
+    ro.observe(root);
+    for (const el of Object.values(nodeRefs.current)) {
+      if (el) ro.observe(el);
+    }
+    window.addEventListener('resize', paintWires);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', paintWires);
+    };
+  }, [paintWires]);
+
   return (
     <div className="canvas-wrap" data-testid="pipeline-canvas">
       <div className="canvas-scroll">
-        <ol className="canvas-flow" aria-label={t.conveyorHeading}>
-          {NODE_ORDER.map((nodeId, index) => {
-            const node = PIPELINE_NODES.find((n) => n.id === nodeId);
-            if (!node) return null;
-            const status: NodeStatus = nodeStatuses?.[nodeId] ?? 'idle';
-            const nextStatus = nodeStatuses?.[NODE_ORDER[index + 1]];
-            const edgeActive =
-              status === 'success' ||
-              status === 'running' ||
-              nextStatus === 'running' ||
-              nextStatus === 'pending';
-
-            return (
-              <li key={nodeId} className="canvas-step">
-                <button
-                  type="button"
-                  className={`canvas-node status-${status}${selected === nodeId ? ' is-selected' : ''}`}
-                  onClick={() => selectNode(nodeId)}
-                  aria-pressed={selected === nodeId}
-                  data-testid={`pipeline-node-${nodeId}`}
+        <div ref={graphRef} className="canvas-graph-shell">
+          <svg className="canvas-wires" aria-hidden="true">
+            {wires.map((wire) => (
+              <path
+                key={wire.key}
+                d={wire.d}
+                className={`wire-path${wire.active ? ' is-active' : ''}`}
+                fill="none"
+              />
+            ))}
+          </svg>
+          <ol
+            className="canvas-graph"
+            aria-label={t.conveyorHeading}
+            style={{
+              gridTemplateColumns: `repeat(${PIPELINE_COLS}, minmax(5.2rem, 1fr))`,
+              gridTemplateRows: `repeat(${PIPELINE_ROWS}, auto)`,
+            }}
+          >
+            {PIPELINE_LAYOUT.map((slot) => {
+              const node = PIPELINE_NODES.find((n) => n.id === slot.id);
+              if (!node) return null;
+              const status: NodeStatus = nodeStatuses?.[slot.id] ?? 'idle';
+              const rowSpan = slot.rowSpan ?? 1;
+              const orderIndex = NODE_ORDER.indexOf(slot.id);
+              const isLeaf = !PIPELINE_EDGES.some((e) => e.from === slot.id);
+              return (
+                <li
+                  key={slot.id}
+                  className={`canvas-slot${slot.col === 0 ? ' is-root' : ''}${isLeaf ? ' is-leaf' : ''}`}
+                  style={{
+                    gridColumn: slot.col + 1,
+                    gridRow: `${slot.row + 1} / span ${rowSpan}`,
+                  }}
                 >
-                  <span className="node-icon" aria-hidden="true">
-                    {index + 1}
-                  </span>
-                  <span className="node-label">{labelFor(node, english)}</span>
-                  <span className="node-status">{statusLabel(t, status)}</span>
-                </button>
-                {index < NODE_ORDER.length - 1 ? (
-                  <Edge animated={edgeActive} />
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
+                  <button
+                    type="button"
+                    ref={(el) => {
+                      nodeRefs.current[slot.id] = el;
+                    }}
+                    className={`canvas-node status-${status}${selected === slot.id ? ' is-selected' : ''}`}
+                    onClick={() => selectNode(slot.id)}
+                    aria-pressed={selected === slot.id}
+                    data-testid={`pipeline-node-${slot.id}`}
+                  >
+                    <span
+                      className="node-port node-port-in"
+                      aria-hidden="true"
+                    />
+                    <span className="node-icon" aria-hidden="true">
+                      {orderIndex + 1}
+                    </span>
+                    <span className="node-copy">
+                      <span className="node-label">
+                        {labelFor(node, english)}
+                      </span>
+                      <span className="node-status">
+                        {statusLabel(t, status)}
+                      </span>
+                    </span>
+                    <span
+                      className="node-port node-port-out"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       </div>
       <div
         className={`node-drawer${open ? ' is-open' : ''}`}
