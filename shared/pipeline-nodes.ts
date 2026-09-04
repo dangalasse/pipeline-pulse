@@ -109,15 +109,14 @@ POST /api/demo-ai-review
     labelEn: 'Preview',
     jobName: 'Preview',
     explainPt:
-      'O live-demo publica o palco (cor + forma da allowlist) no Worker de preview e corre Playwright no mesmo URL. Staging/prod reais não saem deste botão.',
+      'O live-demo promove o snippet (KV lab:pending → lab:source), publica o Worker preview e corre Playwright. Staging/prod reais não saem deste botão.',
     explainEn:
-      'Live-demo ships the stage (allowlisted color + shape) to the preview Worker and runs Playwright against that URL. Real staging/prod do not come from this button.',
+      'Live-demo promotes the snippet (KV lab:pending → lab:source), ships the preview Worker, and runs Playwright. Real staging/prod do not come from this button.',
     yaml: `# live-demo.yml — Preview job
-- name: Pin lab knobs   # cyan|amber|violet|rose × cube|ring|bar
-- run: npm run build
+- wrangler kv key get lab:pending --remote
+- wrangler kv key put lab:source --remote
 - wrangler deploy --env preview
-    --var LAB_HUE LAB_SHAPE
-- curl /api/lab-object  # smoke: hue/shape must match`,
+- curl /api/lab-object  # sourceSha must match pending`,
   },
   {
     id: 'staging',
@@ -144,9 +143,9 @@ deploy-staging:
     labelEn: 'Prod',
     jobName: 'Production',
     explainPt:
-      'Stand-in no live-demo: os mesmos smokes + lab-object na allowlist e dispatchReady=false no preview. Produção real só com tag v* e environment protegido.',
+      'Stand-in no live-demo: os mesmos smokes + snippet em lab-object e dispatchReady=false no preview. Produção real só com tag v* e environment protegido.',
     explainEn:
-      'Live-demo stand-in: same smokes plus allowlisted lab-object and dispatchReady=false on preview. Real production is a v* tag and the protected environment.',
+      'Live-demo stand-in: same smokes plus snippet lab-object and dispatchReady=false on preview. Real production is a v* tag and the protected environment.',
     yaml: `# live-demo.yml — sandbox stand-in
 - run: scripts/sandbox-smoke.sh production
 - run: python3 scripts/assert-live-demo-jobs.py

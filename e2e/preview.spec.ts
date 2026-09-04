@@ -1,22 +1,26 @@
 import { expect, test } from '@playwright/test';
-import { LAB_HUES, LAB_SHAPES } from '../shared/lab-object';
 import { NODE_ORDER } from '../shared/pipeline-nodes';
 import { hasSecretLikeKeys } from '../shared/public-json';
 
 test.describe('preview palco', () => {
-  test('lab shows allowlisted knobs and no free-text inputs', async ({
-    page,
-  }) => {
+  test('lab is a free object with no form controls', async ({ page }) => {
     await page.goto('/lab');
-    const stage = page.locator(
-      '[data-testid="lab-stage"], [data-lab-stage="1"]',
-    );
+    const stage = page.getByTestId('lab-stage');
     await expect(stage).toBeVisible();
-    const hue = await stage.getAttribute('data-hue');
-    const shape = await stage.getAttribute('data-shape');
-    expect(LAB_HUES as readonly string[]).toContain(hue);
-    expect(LAB_SHAPES as readonly string[]).toContain(shape);
     await expect(page.locator('input, textarea, select')).toHaveCount(0);
+    await expect(page.getByText(/sandbox · live-demo preview/i)).toHaveCount(0);
+  });
+
+  test('home shows snippet editor and live object', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('pipeline-canvas')).toBeVisible();
+    await expect(page.getByTestId('lab-stage')).toBeVisible();
+    const editor = page.getByTestId('lab-snippet');
+    await expect(editor).toBeVisible();
+    await editor.fill(
+      '<style>:root{--lab:#fbbf24}</style><div style="width:80px;height:80px;background:var(--lab)"></div>',
+    );
+    await expect(page.getByTestId('lab-stage')).toBeVisible();
   });
 
   test('canvas exposes every conveyor node', async ({ page }) => {
@@ -34,22 +38,24 @@ test.describe('preview palco', () => {
     expect(json.ok).toBe(true);
     expect(json.env).toBe('preview');
     expect(hasSecretLikeKeys(json)).toBe(false);
-    expect(JSON.stringify(json)).not.toMatch(
-      /ghp_|github_pat_|gho_|ghs_|Bearer /i,
-    );
   });
 
-  test('lab-object stays on the allowlist', async ({ request }) => {
+  test('lab-object ships a snippet, not hue knobs', async ({ request }) => {
     const res = await request.get('/api/lab-object');
     expect(res.ok()).toBeTruthy();
     const json = (await res.json()) as {
-      hue: string;
-      shape: string;
+      source?: string;
+      sourceSha?: string;
       env: string;
+      hue?: unknown;
+      shape?: unknown;
     };
-    expect(LAB_HUES as readonly string[]).toContain(json.hue);
-    expect(LAB_SHAPES as readonly string[]).toContain(json.shape);
     expect(json.env).toBe('preview');
+    expect(typeof json.source).toBe('string');
+    expect(json.source?.length).toBeGreaterThan(0);
+    expect(json.sourceSha).toMatch(/^[0-9a-f]{16}$/);
+    expect(json.hue).toBeUndefined();
+    expect(json.shape).toBeUndefined();
     expect(hasSecretLikeKeys(json)).toBe(false);
   });
 

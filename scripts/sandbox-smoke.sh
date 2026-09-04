@@ -69,13 +69,17 @@ PY
 if [ "$MODE" = "production" ]; then
   curl -fsS "$URL/api/lab-object" > /tmp/pv-lab.json
   python3 - <<'PY'
-import json, sys
+import hashlib, json, sys
 with open("/tmp/pv-lab.json", encoding="utf-8") as handle:
     data = json.load(handle)
-if data.get("hue") not in ("cyan", "amber", "violet", "rose"):
-    sys.exit(f"bad hue: {data!r}")
-if data.get("shape") not in ("cube", "ring", "bar"):
-    sys.exit(f"bad shape: {data!r}")
+source = data.get("source")
+if not isinstance(source, str) or not source.strip():
+    sys.exit(f"missing source: {list(data)}")
+if "hue" in data or "shape" in data:
+    sys.exit(f"legacy knobs leaked: {list(data)}")
+sha = hashlib.sha256(source.encode()).hexdigest()[:16]
+if data.get("sourceSha") != sha:
+    sys.exit(f"sourceSha mismatch: {data.get('sourceSha')} != {sha}")
 if data.get("env") in ("staging", "production"):
     sys.exit(f"lab-object on real {data.get('env')}")
 PY

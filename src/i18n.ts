@@ -64,14 +64,9 @@ export interface UiCopy {
   stepDuration: string;
   labHeading: string;
   labLede: string;
-  labHue: string;
-  labShape: string;
-  labOpenStage: string;
-  labWaiting: string;
-  labShared: string;
-  labTune: string;
-  labTuneClose: string;
-  labPortal: string;
+  labSnippet: string;
+  labHint: string;
+  labLive: string;
 }
 
 const PT: UiCopy = {
@@ -126,15 +121,11 @@ const PT: UiCopy = {
   stepDuration: 'duration',
   labHeading: 'Palco da demo',
   labLede:
-    'Cor e forma passam pelo CI e aparecem no palco de preview — não em produção.',
-  labHue: 'Cor',
-  labShape: 'Forma',
-  labOpenStage: 'Abrir',
-  labWaiting: 'Aguardando o Preview.',
-  labShared: 'Palco compartilhado: o último live-demo que passou.',
-  labTune: 'Ajustar',
-  labTuneClose: 'Fechar',
-  labPortal: 'Palco ao vivo (preview)',
+    'O snippet é o objecto. A esteira publica-o no preview — não em produção.',
+  labSnippet: 'object.html · CSS / JS',
+  labHint:
+    'Edita o código e corre a demo. O palco partilhado só muda quando o job Preview conclui.',
+  labLive: 'Objecto do palco',
 };
 
 const EN: UiCopy = {
@@ -188,15 +179,11 @@ const EN: UiCopy = {
   stepDuration: 'duration',
   labHeading: 'Demo stage',
   labLede:
-    'Color and shape go through CI and land on the preview stage — not production.',
-  labHue: 'Color',
-  labShape: 'Shape',
-  labOpenStage: 'Open',
-  labWaiting: 'Waiting for Preview.',
-  labShared: 'Shared stage: the last live-demo that passed.',
-  labTune: 'Tune',
-  labTuneClose: 'Close',
-  labPortal: 'Live stage (preview)',
+    'The snippet is the object. The conveyor ships it to preview — not production.',
+  labSnippet: 'object.html · CSS / JS',
+  labHint:
+    'Edit the code and run the demo. The shared stage updates only when the Preview job finishes.',
+  labLive: 'Stage object',
 };
 
 export function copyFor(locale: Locale): UiCopy {

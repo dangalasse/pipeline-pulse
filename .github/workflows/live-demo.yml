@@ -3,18 +3,10 @@ name: Live Demo
 on:
   workflow_dispatch:
     inputs:
-      hue:
-        description: Allowlisted palco hue
+      sourceSha:
+        description: SHA of the snippet stored in KV lab:pending (audit only)
         required: false
-        type: choice
-        options: [cyan, amber, violet, rose]
-        default: cyan
-      shape:
-        description: Allowlisted palco shape
-        required: false
-        type: choice
-        options: [cube, ring, bar]
-        default: cube
+        type: string
 
 permissions:
   contents: read
@@ -132,19 +124,31 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Pin lab knobs
-        id: knobs
+      - name: Promote pending snippet
         env:
-          HUE: ${{ inputs.hue }}
-          SHAPE: ${{ inputs.shape }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          EXPECT_SHA: ${{ inputs.sourceSha }}
         run: |
           set -euo pipefail
-          hue="${HUE:-cyan}"
-          shape="${SHAPE:-cube}"
-          case "$hue" in cyan|amber|violet|rose) ;; *) echo "rejected hue" >&2; exit 1 ;; esac
-          case "$shape" in cube|ring|bar) ;; *) echo "rejected shape" >&2; exit 1 ;; esac
-          echo "hue=$hue" >> "$GITHUB_OUTPUT"
-          echo "shape=$shape" >> "$GITHUB_OUTPUT"
+          NS='7c26464ce85340e981359bfc0a22deba'
+          npx wrangler kv key get lab:pending --namespace-id="$NS" --remote --text > /tmp/lab-pending.html
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          raw = Path('/tmp/lab-pending.html').read_bytes()
+          if not raw.strip():
+              raise SystemExit('lab:pending is empty')
+          if len(raw) > 8192:
+              raise SystemExit('lab:pending exceeds 8 KiB')
+          sha = hashlib.sha256(raw).hexdigest()[:16]
+          expect = os.environ.get('EXPECT_SHA', '').strip()
+          if expect and expect != sha:
+              raise SystemExit(f'sourceSha mismatch: {sha} != {expect}')
+          print(f'pending_ok bytes={len(raw)} sha={sha}')
+          PY
+          npx wrangler kv key put lab:source --namespace-id="$NS" --remote --path /tmp/lab-pending.html
 
       - name: Build
         env:
@@ -152,8 +156,6 @@ jobs:
           VITE_DEPLOY_ENV: preview
           VITE_BUILD_TIME: ${{ github.run_started_at }}
           VITE_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          VITE_LAB_HUE: ${{ steps.knobs.outputs.hue }}
-          VITE_LAB_SHAPE: ${{ steps.knobs.outputs.shape }}
         run: npm run build
 
       - name: Deploy sandbox Worker
@@ -167,13 +169,8 @@ jobs:
             --var BUILD_TIME:${{ github.run_started_at }}
             --var GITHUB_RUN_URL:${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             --var DEPLOY_ENV:preview
-            --var LAB_HUE:${{ steps.knobs.outputs.hue }}
-            --var LAB_SHAPE:${{ steps.knobs.outputs.shape }}
 
       - name: Smoke palco
-        env:
-          HUE: ${{ steps.knobs.outputs.hue }}
-          SHAPE: ${{ steps.knobs.outputs.shape }}
         run: |
           set -euo pipefail
           URL='https://pipeline-pulse-preview.dantonguerragalasse.workers.dev'
@@ -189,15 +186,28 @@ jobs:
             echo "lab-object never became ready" >&2
             exit 1
           fi
-          cat /tmp/lab.json
           python3 - <<'PY'
-          import json, os, sys
-          with open('/tmp/lab.json', encoding='utf-8') as f:
-              data = json.load(f)
-          if data.get('hue') != os.environ['HUE']:
-              sys.exit(f"hue mismatch: {data!r}")
-          if data.get('shape') != os.environ['SHAPE']:
-              sys.exit(f"shape mismatch: {data!r}")
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+          data = json.loads(Path('/tmp/lab.json').read_text(encoding='utf-8'))
+          source = data.get('source')
+          if not isinstance(source, str) or not source.strip():
+              sys.exit('lab-object missing source')
+          if 'hue' in data or 'shape' in data:
+              sys.exit(f'legacy knobs leaked: {list(data)}')
+          if data.get('env') != 'preview':
+              sys.exit(f'expected preview env, got {data.get("env")!r}')
+          sha = hashlib.sha256(source.encode()).hexdigest()[:16]
+          if data.get('sourceSha') != sha:
+              sys.exit(f'sourceSha mismatch: {data.get("sourceSha")} != {sha}')
+          pending = Path('/tmp/lab-pending.html')
+          if pending.exists():
+              want = hashlib.sha256(pending.read_bytes()).hexdigest()[:16]
+              if sha != want:
+                  sys.exit(f'shipped sha {sha} != pending {want}')
+          print('lab-object ok', sha, 'bytes', len(source.encode()))
           PY
           curl -fsS -o /dev/null -w '%{http_code}\n' "$URL/lab" | grep -Eq '200'
 

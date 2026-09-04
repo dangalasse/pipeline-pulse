@@ -1,47 +1,66 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_LAB_KNOBS,
-  labKnobsFromEnv,
-  parseLabKnobs,
+  DEFAULT_LAB_SOURCE,
+  LAB_SOURCE_MAX_BYTES,
+  hashLabSource,
+  parseLabSource,
+  sourceToSrcDoc,
 } from './lab-object';
 
-describe('parseLabKnobs', () => {
-  it('defaults when empty', () => {
-    expect(parseLabKnobs(null)).toEqual(DEFAULT_LAB_KNOBS);
-    expect(parseLabKnobs(undefined)).toEqual(DEFAULT_LAB_KNOBS);
-    expect(parseLabKnobs({})).toEqual(DEFAULT_LAB_KNOBS);
+describe('parseLabSource', () => {
+  it('accepts the default cube snippet', () => {
+    expect(parseLabSource({ source: DEFAULT_LAB_SOURCE })).toBe(
+      DEFAULT_LAB_SOURCE,
+    );
+    expect(parseLabSource(DEFAULT_LAB_SOURCE)).toBe(DEFAULT_LAB_SOURCE);
   });
 
-  it('accepts allowlisted pairs', () => {
-    expect(parseLabKnobs({ hue: 'amber', shape: 'ring' })).toEqual({
-      hue: 'amber',
-      shape: 'ring',
-    });
+  it('accepts free CSS and script fragments', () => {
+    const src = `<style>:root{--lab:#fbbf24}</style><div class="cube"></div>`;
+    expect(parseLabSource({ source: src })).toBe(src);
   });
 
-  it('rejects HTML, SQL fragments and extra punctuation', () => {
-    expect(parseLabKnobs({ hue: '<script>', shape: 'cube' })).toBeNull();
-    expect(parseLabKnobs({ hue: 'cyan', shape: 'cube;drop' })).toBeNull();
-    expect(parseLabKnobs({ hue: 'CYAN', shape: 'cube' })).toBeNull();
-    expect(parseLabKnobs('cyan')).toBeNull();
-    expect(parseLabKnobs({ hue: 'cyan<img>', shape: 'cube' })).toBeNull();
-    expect(parseLabKnobs({ hue: "cyan';--", shape: 'bar' })).toBeNull();
-    expect(parseLabKnobs({ hue: 'cyan', shape: '../../etc' })).toBeNull();
-  });
-
-  it('ignores extra keys', () => {
+  it('rejects empty, oversized and non-source payloads', () => {
+    expect(parseLabSource(null)).toBeNull();
+    expect(parseLabSource(undefined)).toBeNull();
+    expect(parseLabSource({})).toBeNull();
+    expect(parseLabSource({ source: '   ' })).toBeNull();
     expect(
-      parseLabKnobs({ hue: 'rose', shape: 'bar', html: '<b>x</b>' }),
-    ).toEqual({ hue: 'rose', shape: 'bar' });
+      parseLabSource({ source: 'x'.repeat(LAB_SOURCE_MAX_BYTES + 1) }),
+    ).toBe(null);
+    expect(parseLabSource('cyan')).toBe('cyan');
+  });
+
+  it('rejects credential-like material', () => {
+    expect(
+      parseLabSource({ source: `color: ghp_${'A'.repeat(36)};` }),
+    ).toBeNull();
+    expect(
+      parseLabSource({
+        source: `/* github_pat_${'B'.repeat(22)} */ .x{}`,
+      }),
+    ).toBeNull();
+    expect(parseLabSource({ source: 'AKIAIOSFODNN7EXAMPLE {}' })).toBeNull();
   });
 });
 
-describe('labKnobsFromEnv', () => {
-  it('falls back to defaults on garbage env', () => {
-    expect(labKnobsFromEnv('nope', 'also-nope')).toEqual(DEFAULT_LAB_KNOBS);
-    expect(labKnobsFromEnv('violet', undefined)).toEqual({
-      hue: 'violet',
-      shape: 'cube',
-    });
+describe('hashLabSource', () => {
+  it('is stable and short', async () => {
+    const a = await hashLabSource(DEFAULT_LAB_SOURCE);
+    const b = await hashLabSource(DEFAULT_LAB_SOURCE);
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{16}$/);
+    expect(await hashLabSource('other')).not.toBe(a);
+  });
+});
+
+describe('sourceToSrcDoc', () => {
+  it('wraps fragments and keeps full documents', () => {
+    expect(sourceToSrcDoc('<div class="x"></div>')).toContain(
+      '<!doctype html>',
+    );
+    expect(sourceToSrcDoc('<!doctype html><html><body>ok</body></html>')).toBe(
+      '<!doctype html><html><body>ok</body></html>',
+    );
   });
 });

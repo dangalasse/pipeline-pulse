@@ -270,7 +270,7 @@ async function refreshRunFromGithub(
 
 export async function createDemoRun(
   token: string,
-  knobs: { hue: string; shape: string },
+  payload: { sourceSha: string },
 ): Promise<DemoRunRecord> {
   pruneOldRuns();
 
@@ -299,7 +299,7 @@ export async function createDemoRun(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ref: 'main',
-        inputs: { hue: knobs.hue, shape: knobs.shape },
+        inputs: { sourceSha: payload.sourceSha },
       }),
     },
   );

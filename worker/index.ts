@@ -4,9 +4,12 @@ import { allowCorsOrigin } from '../shared/cors';
 import type { DeployMeta } from '../shared/deploy-meta';
 import { buildHoneypotBody } from '../shared/honeypot';
 import {
+  DEFAULT_LAB_SOURCE,
+  KV_LAB_PENDING,
+  KV_LAB_SOURCE,
   PREVIEW_LAB_URL,
-  labKnobsFromEnv,
-  parseLabKnobs,
+  hashLabSource,
+  parseLabSource,
 } from '../shared/lab-object';
 import { UPSTREAM_FAILED_MESSAGE } from '../shared/public-json';
 import { AI_CONTEXT_MAX_BYTES, clampRedacted } from '../shared/redact';
@@ -93,10 +96,13 @@ app.get('/api/demo-config', (c) =>
   }),
 );
 
-app.get('/api/lab-object', (c) => {
-  const knobs = labKnobsFromEnv(c.env.LAB_HUE, c.env.LAB_SHAPE);
+app.get('/api/lab-object', async (c) => {
+  const stored = await c.env.DEMO_GATE_KV.get(KV_LAB_SOURCE);
+  const source = stored?.trim() ? stored : DEFAULT_LAB_SOURCE;
+  const sourceSha = await hashLabSource(source);
   return c.json({
-    ...knobs,
+    source,
+    sourceSha,
     env: c.env.DEPLOY_ENV,
     gitSha: c.env.GIT_SHA,
     buildTime: c.env.BUILD_TIME,
@@ -199,17 +205,19 @@ app.post('/api/demo-run', async (c) => {
         );
       }
     }
-    const knobs = parseLabKnobs(raw);
-    if (!knobs) {
+    const source = parseLabSource(raw);
+    if (!source) {
       return c.json(
         {
           error: 'bad_lab',
-          message: 'hue and shape must be from the allowlist.',
+          message: 'Snippet must be 1–8 KiB and must not look like a secret.',
         },
         400,
       );
     }
-    const record = await createDemoRun(token, knobs);
+    const sourceSha = await hashLabSource(source);
+    await c.env.DEMO_GATE_KV.put(KV_LAB_PENDING, source);
+    const record = await createDemoRun(token, { sourceSha });
     return c.json(serializeDemoRun(record), 202);
   } catch (err) {
     if (err instanceof DemoGateError) {

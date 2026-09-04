@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeployMeta } from '../shared/deploy-meta';
 import { isLiveSha, shortSha } from '../shared/deploy-meta';
-import type {
-  LabHue,
-  LabKnobs,
-  LabObject,
-  LabShape,
+import {
+  DEFAULT_LAB_SOURCE,
+  type LabObject,
+  PREVIEW_ORIGIN,
 } from '../shared/lab-object';
-import { DEFAULT_LAB_KNOBS, PREVIEW_ORIGIN } from '../shared/lab-object';
-import { LabPortal } from './components/LabPortal';
+import { LabLive } from './components/LabLive';
+import { LabSnippet } from './components/LabSnippet';
 import { LocaleToggle } from './components/LocaleToggle';
 import { PipelineCanvas } from './components/PipelineCanvas';
 import { useLiveDemo } from './lib/use-live-demo';
@@ -58,8 +57,9 @@ export default function App() {
   const widgetIdRef = useRef<string | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  const [knobs, setKnobs] = useState<LabKnobs>({ ...DEFAULT_LAB_KNOBS });
-  const [shipped, setShipped] = useState<LabObject | null>(null);
+  const [draft, setDraft] = useState(DEFAULT_LAB_SOURCE);
+  const [shippedSha, setShippedSha] = useState<string | null>(null);
+  const seededRef = useRef(false);
 
   const getTurnstileToken = useCallback(() => turnstileTokenRef.current, []);
   const resetTurnstile = useCallback(() => {
@@ -202,7 +202,12 @@ export default function App() {
         return (await res.json()) as LabObject;
       })
       .then((data) => {
-        if (!cancelled && data.hue && data.shape) setShipped(data);
+        if (cancelled || !data.source) return;
+        setShippedSha(data.sourceSha);
+        if (!seededRef.current || previewReady) {
+          setDraft(data.source);
+          seededRef.current = true;
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -230,7 +235,7 @@ export default function App() {
           <button
             type="button"
             className="btn primary"
-            onClick={() => void startDemo(knobs)}
+            onClick={() => void startDemo(draft)}
             disabled={demoLoading}
           >
             {demoLoading ? t.runningDemo : t.runLiveDemo}
@@ -266,27 +271,15 @@ export default function App() {
         ) : null}
       </header>
 
-      <section className="panel panel-portal" aria-labelledby="lab-heading">
-        <div className="panel-head">
-          <h2 id="lab-heading">{t.labHeading}</h2>
-        </div>
-        <LabPortal
-          knobs={knobs}
-          shipped={shipped}
-          previewReady={previewReady}
-          demoLoading={demoLoading}
-          hueLabel={t.labHue}
-          shapeLabel={t.labShape}
-          tuneLabel={t.labTune}
-          closeTuneLabel={t.labTuneClose}
-          openStageLabel={t.labOpenStage}
-          waitingLabel={t.labWaiting}
-          sharedLabel={t.labShared}
-          portalLabel={t.labPortal}
-          onHue={(hue: LabHue) => setKnobs((k) => ({ ...k, hue }))}
-          onShape={(shape: LabShape) => setKnobs((k) => ({ ...k, shape }))}
-        />
-      </section>
+      <LabLive source={draft} title={t.labLive} />
+      <p className="lab-inline-lede muted">{t.labLede}</p>
+      <LabSnippet
+        source={draft}
+        disabled={demoLoading}
+        label={t.labSnippet}
+        hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
+        onChange={setDraft}
+      />
 
       <section className="panel" aria-labelledby="deploy-heading">
         <div className="panel-head">

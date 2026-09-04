@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LabKnobs } from '../../shared/lab-object';
-import { parseLabKnobs } from '../../shared/lab-object';
+import { parseLabSource } from '../../shared/lab-object';
 import type { NodeDetailsMap } from '../../shared/node-run-detail';
 import type { NodeId, NodeStatus } from '../../shared/pipeline-nodes';
 import type { Locale } from '../i18n';
@@ -154,7 +153,7 @@ export function useLiveDemo({
   );
 
   const startDemo = useCallback(
-    async (rawKnobs?: LabKnobs) => {
+    async (rawSource?: string) => {
       setLoading(true);
       setError(null);
       setAiReview(null);
@@ -162,12 +161,12 @@ export function useLiveDemo({
       stopPolling();
 
       try {
-        const knobs = parseLabKnobs(rawKnobs);
-        if (!knobs) {
+        const source = parseLabSource({ source: rawSource ?? '' });
+        if (!source) {
           setError(
             locale === 'en-US'
-              ? 'Pick a listed color and shape.'
-              : 'Escolha uma cor e uma forma da lista.',
+              ? 'Snippet must be 1–8 KiB and must not look like a secret.'
+              : 'O snippet deve ter 1–8 KiB e não pode parecer um segredo.',
           );
           setLoading(false);
           return;
@@ -196,7 +195,7 @@ export function useLiveDemo({
             'Content-Type': 'application/json',
             'X-Demo-Ticket': ticket.ticket,
           },
-          body: JSON.stringify(knobs),
+          body: JSON.stringify({ source }),
         });
         const data = (await res.json()) as DemoRunState & {
           error?: string;
