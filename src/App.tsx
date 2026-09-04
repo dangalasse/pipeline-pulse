@@ -218,12 +218,11 @@ export default function App() {
       <div className="atmosphere" aria-hidden="true" />
       <div className="stage-main">
         <header className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">{t.eyebrow}</p>
-            <h1 className="brand">{t.title}</h1>
-            <p className="lede">{t.lede}</p>
-          </div>
-          <div className="hero-actions">
+          <div className="hero-top">
+            <div className="hero-copy">
+              <p className="eyebrow">{t.eyebrow}</p>
+              <h1 className="brand">{t.title}</h1>
+            </div>
             <LocaleToggle
               locale={locale}
               toggleHref={toggleHref}
@@ -231,6 +230,9 @@ export default function App() {
               currentLabel={currentLabel}
               switchLanguage={t.switchLanguage}
             />
+          </div>
+          <p className="lede">{t.lede}</p>
+          <div className="hero-tools">
             <div className="cta-row">
               <button
                 type="button"
@@ -260,16 +262,16 @@ export default function App() {
             <div className="turnstile-wrap" aria-label={t.humanCheck}>
               <div ref={hostRef} />
             </div>
-            {demoError ? <p className="demo-error">{demoError}</p> : null}
-            {demo?.githubRunUrl ? (
-              <p className="demo-run-link">
-                <span className="muted">{t.lastRunLabel}: </span>
-                <a href={demo.githubRunUrl} target="_blank" rel="noreferrer">
-                  {t.openGithubRun} →
-                </a>
-              </p>
-            ) : null}
           </div>
+          {demoError ? <p className="demo-error">{demoError}</p> : null}
+          {demo?.githubRunUrl ? (
+            <p className="demo-run-link">
+              <span className="muted">{t.lastRunLabel}: </span>
+              <a href={demo.githubRunUrl} target="_blank" rel="noreferrer">
+                {t.openGithubRun} →
+              </a>
+            </p>
+          ) : null}
         </header>
 
         <section className="panel panel-canvas" aria-labelledby="belt-heading">
@@ -381,16 +383,16 @@ export default function App() {
 
         <p className="lab-inline-lede muted">{t.labLede}</p>
         <div className="studio">
-          <aside className="vitrine" aria-label={t.labLive}>
-            <span className="vitrine-kicker">{t.palcoKicker}</span>
-            <LabLive source={draft} title={t.labLive} />
-          </aside>
           <LabSnippet
             source={draft}
             disabled={demoLoading}
             hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
             onChange={setDraft}
           />
+          <aside className="vitrine" aria-label={t.labLive}>
+            <span className="vitrine-kicker">{t.palcoKicker}</span>
+            <LabLive source={draft} title={t.labLive} />
+          </aside>
         </div>
       </div>
     </div>
