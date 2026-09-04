@@ -48,6 +48,7 @@ LAB_SHAPE = "cube"
 [env.preview]
 name = "pipeline-pulse-preview"
 workers_dev = true
+# Do not put GITHUB_TOKEN on this env — preview never dispatches (see workerGithubToken).
 
 [[env.preview.kv_namespaces]]
 binding = "DEMO_GATE_KV"

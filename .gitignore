@@ -20,3 +20,9 @@ dist-ssr
 *.tsbuildinfo
 node_modules/.tmp
 .cf_upload_code.js
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

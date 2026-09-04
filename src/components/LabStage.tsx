@@ -13,6 +13,7 @@ export function LabStage({ hue, shape, size = 'lg' }: LabStageProps) {
       data-hue={hue}
       data-shape={shape}
       data-lab-stage="1"
+      data-testid="lab-stage"
     >
       <div className={`lab-object lab-object--${shape}`} aria-hidden="true">
         {shape === 'cube' ? (

@@ -57,6 +57,8 @@ export interface DemoGateEnv {
   TURNSTILE_SECRET?: string;
   DEMO_TICKET_SECRET?: string;
   DEMO_GATE_KV: KVNamespace;
+  /** Isolates quotas when preview/staging/prod share a KV namespace. */
+  deployEnv?: string;
 }
 
 export interface TicketClaims {
@@ -147,6 +149,11 @@ export async function verifyTurnstile(
   return data.success === true;
 }
 
+function quotaKey(env: DemoGateEnv, key: string): string {
+  const ns = (env.deployEnv || 'default').replace(/[^a-z0-9._-]+/gi, '_');
+  return `${ns}:${key}`;
+}
+
 function encodeTicket(claims: TicketClaims, signature: string): string {
   const json = JSON.stringify(claims);
   const b64 = btoa(json)
@@ -212,16 +219,16 @@ export async function issueTicket(
 }
 
 async function consumeJti(
-  kv: KVNamespace,
+  env: DemoGateEnv,
   jti: string,
   ttlSec: number,
 ): Promise<void> {
-  const key = `jti:${jti}`;
-  const existing = await kv.get(key);
+  const key = quotaKey(env, `jti:${jti}`);
+  const existing = await env.DEMO_GATE_KV.get(key);
   if (existing) {
     throw new DemoGateError(403, 'ticket_replay', 'Demo ticket already used.');
   }
-  await kv.put(key, '1', { expirationTtl: Math.max(60, ttlSec) });
+  await env.DEMO_GATE_KV.put(key, '1', { expirationTtl: Math.max(60, ttlSec) });
 }
 
 async function bumpQuota(
@@ -306,19 +313,19 @@ export async function enforceTicketAndQuota(
   }
 
   const remainingTtl = Math.max(60, claims.exp - Math.floor(Date.now() / 1000));
-  await consumeJti(env.DEMO_GATE_KV, claims.jti, remainingTtl);
+  await consumeJti(env, claims.jti, remainingTtl);
 
   const policy = QUOTA_BY_AUD[expectedAud];
   const day = new Date().toISOString().slice(0, 10);
   await bumpQuota(
     env.DEMO_GATE_KV,
-    `q:ip:${expectedAud}:${ipHash}`,
+    quotaKey(env, `q:ip:${expectedAud}:${ipHash}`),
     policy.ipLimit,
     policy.ipWindowSec,
   );
   await bumpQuota(
     env.DEMO_GATE_KV,
-    `q:global:${expectedAud}:${day}`,
+    quotaKey(env, `q:global:${expectedAud}:${day}`),
     policy.globalLimit,
     policy.globalWindowSec,
   );
@@ -343,7 +350,7 @@ export function gateErrorResponse(
       },
     );
   }
-  const message = err instanceof Error ? err.message : String(err);
+  const message = 'Upstream request failed.';
   return new Response(JSON.stringify({ error: 'gate_error', message }), {
     status: 500,
     headers: {

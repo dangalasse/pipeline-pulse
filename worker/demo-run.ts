@@ -7,6 +7,7 @@ import type {
 } from '../shared/node-run-detail';
 import type { NodeId, NodeStatus } from '../shared/pipeline-nodes';
 import { NODE_ORDER, PIPELINE_NODES } from '../shared/pipeline-nodes';
+import { sanitizeLogText, truncateLog } from '../shared/redact';
 
 export interface DemoRunRecord {
   id: string;
@@ -27,8 +28,6 @@ export interface DemoRunRecord {
 const GITHUB_REPO = 'dangalasse/pipeline-pulse';
 const WORKFLOW_FILE = 'live-demo.yml';
 const RUN_TTL_MS = 30 * 60_000;
-const LOG_MAX_BYTES = 32 * 1024;
-const LOG_MAX_LINES = 200;
 
 const demoRuns = new Map<string, DemoRunRecord>();
 
@@ -306,10 +305,9 @@ export async function createDemoRun(
   );
 
   if (!dispatchRes.ok) {
-    const detail = await dispatchRes.text();
     record.workflowStatus = 'failure';
-    record.errorMessage = `GitHub dispatch failed (${dispatchRes.status}): ${detail.slice(0, 200)}`;
-    throw new Error(record.errorMessage);
+    record.errorMessage = `GitHub dispatch failed (${dispatchRes.status})`;
+    throw new Error('dispatch_failed');
   }
 
   const found = await findLatestDispatchRun(token, createdAt);
@@ -332,7 +330,7 @@ export async function getLatestLiveDemoRun(
     `/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=1`,
   );
   if (!res.ok) {
-    throw new Error(`GitHub runs list failed (${res.status})`);
+    throw new Error('github_upstream');
   }
   const body = (await res.json()) as {
     workflow_runs: Array<{
@@ -396,48 +394,6 @@ export async function getDemoRun(
   return record;
 }
 
-const REDACT_PATTERNS: RegExp[] = [
-  /\bghp_[A-Za-z0-9_]{20,}\b/g,
-  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/g,
-  /\bgho_[A-Za-z0-9_]{20,}\b/g,
-  /\bBearer\s+[A-Za-z0-9._\-/=+]{8,}/gi,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  /\b(token|secret|password|api[_-]?key)\s*[:=]\s*\S+/gi,
-];
-
-function stripAnsi(text: string): string {
-  const esc = String.fromCharCode(27);
-  return text.split(esc).reduce((acc, part, i) => {
-    if (i === 0) return part;
-    const m = part.match(/^\[[0-9;]*[a-zA-Z]/);
-    return acc + (m ? part.slice(m[0].length) : part);
-  }, '');
-}
-
-function redactSecrets(text: string): string {
-  let out = text;
-  for (const re of REDACT_PATTERNS) {
-    out = out.replace(re, '[REDACTED]');
-  }
-  return out;
-}
-
-function truncateLog(text: string): { text: string; truncated: boolean } {
-  const lines = text.split(/\r?\n/);
-  let truncated = false;
-  let sliced = lines;
-  if (sliced.length > LOG_MAX_LINES) {
-    sliced = sliced.slice(-LOG_MAX_LINES);
-    truncated = true;
-  }
-  let joined = sliced.join('\n');
-  if (joined.length > LOG_MAX_BYTES) {
-    joined = joined.slice(-LOG_MAX_BYTES);
-    truncated = true;
-  }
-  return { text: joined, truncated };
-}
-
 function extractTextFromZip(buf: ArrayBuffer): string {
   const files = unzipSync(new Uint8Array(buf));
   const parts: string[] = [];
@@ -466,9 +422,7 @@ export async function fetchNodeJobLogs(
   await refreshRunFromGithub(token, record);
   const detail: NodeRunDetail | undefined = record.nodeDetails[nodeId];
   if (!detail?.githubJobId) {
-    throw new Error(
-      `No GitHub job for node "${nodeId}" in this live-demo run.`,
-    );
+    throw new Error('github_upstream');
   }
 
   const githubRes = await githubFetch(
@@ -478,10 +432,7 @@ export async function fetchNodeJobLogs(
   );
   const res = await fetchGithubJobLogBody(githubRes);
   if (!res.ok) {
-    const detailText = await res.text();
-    throw new Error(
-      `GitHub job logs failed (${res.status}): ${detailText.slice(0, 160)}`,
-    );
+    throw new Error('github_upstream');
   }
 
   const buf = await res.arrayBuffer();
@@ -497,7 +448,7 @@ export async function fetchNodeJobLogs(
     raw = new TextDecoder().decode(buf);
   }
 
-  const cleaned = redactSecrets(stripAnsi(raw));
+  const cleaned = sanitizeLogText(raw);
   const { text, truncated } = truncateLog(cleaned);
   return {
     nodeId,
@@ -517,7 +468,9 @@ export function serializeDemoRun(record: DemoRunRecord) {
     nodeStatuses: record.nodeStatuses,
     nodeDetails: record.nodeDetails,
     createdAt: record.createdAt,
-    errorMessage: record.errorMessage,
+    errorMessage: record.errorMessage
+      ? sanitizeLogText(record.errorMessage)
+      : null,
   };
 }
 

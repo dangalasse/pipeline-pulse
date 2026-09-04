@@ -8,6 +8,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   test: {
-    include: ['shared/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['shared/**/*.test.ts', 'src/**/*.test.ts', 'worker/**/*.test.ts'],
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
   },
 });

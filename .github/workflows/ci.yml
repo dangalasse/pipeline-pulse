@@ -30,6 +30,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Security contracts
+        run: npm run test:security
+
       - name: Unit tests
         run: npm test
 

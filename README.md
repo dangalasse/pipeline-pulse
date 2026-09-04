@@ -17,9 +17,9 @@ The home page shows the **git SHA**, **environment**, **build time**, and **work
 ## Features
 
 - **Bilingual UI** — PT-BR (default) / ENG-US via `localStorage` + `?lang=` (same pattern as [edge-labs](https://edge.galasse.dev))
-- **n8n-style pipeline canvas** — Push → CI → Test → AI Review → Preview → Staging → Prod with animated edges; click a node for workflow YAML
-- **Run live demo** — Turnstile → HMAC ticket → KV quotas, then `workflow_dispatch` of `live-demo.yml` (lint / typecheck / security / test / **preview deploy** of the palco). Allowlisted knobs only (`cyan|amber|violet|rose` × `cube|ring|bar`). Shared sandbox: https://pipeline-pulse-preview.dantonguerragalasse.workers.dev/lab
-- **AI review on failure** — same Demo Gate (`edge.analyze` quota); Worker proxies to Edge Labs with short-lived service auth
+- **n8n-style pipeline canvas** — Push → CI → Security → Test → AI Review → Preview → Staging → Prod with animated edges; click a node for workflow YAML
+- **Run live demo** — Turnstile → HMAC ticket → KV quotas, then `workflow_dispatch` of `live-demo.yml` (lint / typecheck / security contracts / test / AI probe / **preview deploy** of the palco / **sandbox Staging+Production smokes**). Allowlisted knobs only (`cyan|amber|violet|rose` × `cube|ring|bar`). Shared sandbox: https://pipeline-pulse-preview.dantonguerragalasse.workers.dev/lab
+- **AI review on failure** — same Demo Gate (`edge.analyze` quota); Worker proxies to Edge Labs with redacted logs and short-lived service auth
 
 ## Demo Gate (abuse by contract)
 
@@ -47,7 +47,7 @@ flowchart LR
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `ci.yml` | PR + push `main` | Biome, typecheck, Vitest, Vite build |
-| `live-demo.yml` | `workflow_dispatch` (+ UI button) | CI → Security → Test → AI Review → **Preview Worker** (`LAB_HUE` / `LAB_SHAPE` allowlist, smoke `/api/lab-object`) |
+| `live-demo.yml` | `workflow_dispatch` (+ UI button) | CI → Security → Test → AI Review → Preview Worker (`LAB_HUE` / `LAB_SHAPE` allowlist, Playwright + smoke `/api/lab-object`) → **sandbox Staging/Production smokes on the same preview URL**. Never deploys `staging.pipeview` or `pipeview.galasse.dev`. |
 | `preview.yml` | PR | Deploy `pipeline-pulse-preview` Worker + comment URL |
 | `deploy.yml` | push `main` | Staging + smoke `/api/health` (requires `CLOUDFLARE_API_TOKEN`) |
 | `deploy.yml` | tag `v*` | Production (GitHub Environment `production`) + smoke |
@@ -57,7 +57,7 @@ flowchart LR
 - **Vite + React 19** — meta-dashboard UI
 - **Hono** on **Cloudflare Workers** — `/api/health`, `/api/deploy-meta`, `/api/demo-run`, `/api/demo-ai-review`
 - **Workers static assets** — SPA from `dist/`
-- **Biome** + **Vitest** + **Wrangler**
+- **Biome** + **Vitest** + **Playwright** (palco preview) + **Wrangler**
 - **Terraform stubs** — `infra/terraform/` (Cloudflare Workers routes)
 
 ## Local development
@@ -115,7 +115,9 @@ npx wrangler secret put GITHUB_TOKEN --env staging
 
 Or via the Cloudflare dashboard: Workers → `pipeline-pulse` → Settings → Variables → Encrypt `GITHUB_TOKEN`.
 
-Dispatch quotas: Demo Gate KV (**1/IP/15min**, **8/day**), not an in-memory Worker limit.
+Dispatch quotas: Demo Gate KV (**1/IP/15min**, **8/day**), namespaced by `DEPLOY_ENV` so the preview palco cannot burn production quotas.
+
+The live-demo canvas lights **Staging** and **Production** as stand-ins (health, headers, `/.env` wink, lab allowlist) against the preview Worker. Real promotion remains `deploy.yml` on `main` / `v*` tags.
 
 ## Promote to production
 

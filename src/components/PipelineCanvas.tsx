@@ -227,7 +227,7 @@ export function PipelineCanvas({
   };
 
   return (
-    <div className="canvas-wrap">
+    <div className="canvas-wrap" data-testid="pipeline-canvas">
       <div className="canvas-scroll">
         <ol className="canvas-flow" aria-label={t.conveyorHeading}>
           {NODE_ORDER.map((nodeId, index) => {
@@ -248,6 +248,7 @@ export function PipelineCanvas({
                   className={`canvas-node status-${status}${selected === nodeId ? ' is-selected' : ''}`}
                   onClick={() => selectNode(nodeId)}
                   aria-pressed={selected === nodeId}
+                  data-testid={`pipeline-node-${nodeId}`}
                 >
                   <span className="node-icon" aria-hidden="true">
                     {index + 1}

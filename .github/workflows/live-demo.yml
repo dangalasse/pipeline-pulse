@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: live-demo
@@ -63,6 +64,9 @@ jobs:
         # Prod deps only — wrangler/miniflare (dev) pull undici/ws advisories that are not shipped to the Worker.
         run: npm audit --omit=dev --audit-level=high
 
+      - name: Security contracts (Vitest)
+        run: npm run test:security
+
   test:
     name: Test
     needs: security
@@ -86,11 +90,32 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: AI review gate (demo)
+      - name: Contract probe (no Edge Labs payload)
         run: |
-          echo "Live demo — AI review runs on failure via Edge Labs from the UI."
-          echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "TOTE e2e (Playwright) and host security gates live in dangalasse/TOTE — not in this Worker demo."
+          set -euo pipefail
+          URL='https://pipeview.galasse.dev'
+          curl -fsS "$URL/api/health" > /tmp/health.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/health.json', encoding='utf-8') as handle:
+              data = json.load(handle)
+          if data.get('ok') is not True:
+              raise SystemExit(f'health not ok: {data!r}')
+          if any(str(k).lower() in ('token', 'secret', 'password') for k in data):
+              raise SystemExit(f'health leaked credential key: {data!r}')
+          PY
+          code=$(curl -sS -o /tmp/ai.json -w '%{http_code}' \
+            -X POST "$URL/api/demo-ai-review" \
+            -H 'content-type: application/json' \
+            -d '{"message":"probe"}')
+          echo "$code" | grep -Eq '403|503'
+          python3 - <<'PY'
+          import json
+          with open('/tmp/ai.json', encoding='utf-8') as handle:
+              data = json.load(handle)
+          if any(str(k).lower() in ('token', 'secret', 'password', 'authorization') for k in data):
+              raise SystemExit(f'review probe leaked credential key: {data!r}')
+          PY
 
   preview:
     name: Preview
@@ -175,3 +200,40 @@ jobs:
               sys.exit(f"shape mismatch: {data!r}")
           PY
           curl -fsS -o /dev/null -w '%{http_code}\n' "$URL/lab" | grep -Eq '200'
+
+      - name: E2E palco (Playwright)
+        env:
+          E2E_BASE_URL: https://pipeline-pulse-preview.dantonguerragalasse.workers.dev
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  staging:
+    name: Staging
+    needs: preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sandbox smoke (preview only)
+        run: bash scripts/sandbox-smoke.sh staging
+
+  production:
+    name: Production
+    needs: staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sandbox smoke (preview only)
+        run: bash scripts/sandbox-smoke.sh production
+      - name: Assert conveyor jobs in this run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/assert-live-demo-jobs.py

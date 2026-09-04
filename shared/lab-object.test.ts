@@ -19,11 +19,14 @@ describe('parseLabKnobs', () => {
     });
   });
 
-  it('rejects free text and unknown tokens', () => {
+  it('rejects HTML, SQL fragments and extra punctuation', () => {
     expect(parseLabKnobs({ hue: '<script>', shape: 'cube' })).toBeNull();
     expect(parseLabKnobs({ hue: 'cyan', shape: 'cube;drop' })).toBeNull();
     expect(parseLabKnobs({ hue: 'CYAN', shape: 'cube' })).toBeNull();
     expect(parseLabKnobs('cyan')).toBeNull();
+    expect(parseLabKnobs({ hue: 'cyan<img>', shape: 'cube' })).toBeNull();
+    expect(parseLabKnobs({ hue: "cyan';--", shape: 'bar' })).toBeNull();
+    expect(parseLabKnobs({ hue: 'cyan', shape: '../../etc' })).toBeNull();
   });
 
   it('ignores extra keys', () => {

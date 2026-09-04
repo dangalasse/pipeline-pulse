@@ -1,11 +1,15 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { allowCorsOrigin } from '../shared/cors';
 import type { DeployMeta } from '../shared/deploy-meta';
+import { buildHoneypotBody } from '../shared/honeypot';
 import {
   PREVIEW_LAB_URL,
   labKnobsFromEnv,
   parseLabKnobs,
 } from '../shared/lab-object';
+import { UPSTREAM_FAILED_MESSAGE } from '../shared/public-json';
+import { AI_CONTEXT_MAX_BYTES, clampRedacted } from '../shared/redact';
 import {
   DemoGateError,
   clientIp,
@@ -22,6 +26,7 @@ import {
   isNodeId,
   serializeDemoRun,
 } from './demo-run';
+import { workerGithubToken } from './github-access';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -42,25 +47,12 @@ export interface Env {
 
 const EDGE_ANALYZE_URL = 'https://edge.galasse.dev/analyze-error';
 
-const CORS_ORIGINS = [
-  'https://pipeline-pulse-preview.dantonguerragalasse.workers.dev',
-  'https://staging.pipeview.galasse.dev',
-  'https://pipeline.galasse.dev',
-  'https://staging.pipeline.galasse.dev',
-  'https://portfolio.galasse.dev',
-  'http://localhost:5173',
-  'http://localhost:8787',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:8787',
-];
-
 const app = new Hono<{ Bindings: Env }>();
 
 app.use(
   '/api/*',
   cors({
-    origin: (origin) =>
-      !origin || CORS_ORIGINS.includes(origin) ? origin || '*' : '',
+    origin: (origin) => allowCorsOrigin(origin),
     allowMethods: ['GET', 'POST', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'X-Demo-Ticket'],
   }),
@@ -71,7 +63,16 @@ function gateEnv(env: Env) {
     TURNSTILE_SECRET: env.TURNSTILE_SECRET,
     DEMO_TICKET_SECRET: env.DEMO_TICKET_SECRET,
     DEMO_GATE_KV: env.DEMO_GATE_KV,
+    deployEnv: env.DEPLOY_ENV,
   };
+}
+
+function jsonUpstream(
+  c: Context<{ Bindings: Env }>,
+  code: string,
+  status: 500 | 502 = 502,
+) {
+  return c.json({ error: code, message: UPSTREAM_FAILED_MESSAGE }, status);
 }
 
 app.get('/api/health', (c) =>
@@ -88,7 +89,7 @@ app.get('/api/demo-config', (c) =>
   c.json({
     turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || null,
     gateReady: Boolean(c.env.TURNSTILE_SECRET && c.env.DEMO_TICKET_SECRET),
-    dispatchReady: Boolean(c.env.GITHUB_TOKEN?.trim()),
+    dispatchReady: Boolean(workerGithubToken(c.env)),
   }),
 );
 
@@ -121,7 +122,7 @@ app.get('/api/deploy-meta', (c) => {
 /** Last real live-demo.yml run — public GitHub read, no secret. */
 app.get('/api/demo-run/latest', async (c) => {
   try {
-    const record = await getLatestLiveDemoRun(c.env.GITHUB_TOKEN?.trim());
+    const record = await getLatestLiveDemoRun(workerGithubToken(c.env));
     if (!record) {
       return c.json({
         id: null,
@@ -135,9 +136,8 @@ app.get('/api/demo-run/latest', async (c) => {
       });
     }
     return c.json(serializeDemoRun(record));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: 'latest_failed', message }, 502);
+  } catch {
+    return jsonUpstream(c, 'latest_failed');
   }
 });
 
@@ -163,12 +163,12 @@ app.post('/api/demo-ticket', async (c) => {
     if (err instanceof DemoGateError) {
       return c.json({ error: err.code, message: err.message }, err.status);
     }
-    return c.json({ error: 'ticket_failed', message: String(err) }, 500);
+    return jsonUpstream(c, 'ticket_failed', 500);
   }
 });
 
 app.post('/api/demo-run', async (c) => {
-  const token = c.env.GITHUB_TOKEN?.trim();
+  const token = workerGithubToken(c.env);
   if (!token) {
     return c.json(
       {
@@ -218,16 +218,12 @@ app.post('/api/demo-run', async (c) => {
     if (err instanceof TokenMissingError) {
       return c.json({ error: 'unavailable', message: err.message }, 503);
     }
-    const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: 'dispatch_failed', message }, 502);
+    return jsonUpstream(c, 'dispatch_failed');
   }
 });
 
 app.get('/api/demo-run/:id', async (c) => {
-  const record = await getDemoRun(
-    c.env.GITHUB_TOKEN?.trim(),
-    c.req.param('id'),
-  );
+  const record = await getDemoRun(workerGithubToken(c.env), c.req.param('id'));
   if (!record) {
     return c.json({ error: 'not_found', message: 'Demo run not found.' }, 404);
   }
@@ -235,7 +231,7 @@ app.get('/api/demo-run/:id', async (c) => {
 });
 
 app.get('/api/demo-run/:id/nodes/:nodeId/logs', async (c) => {
-  const token = c.env.GITHUB_TOKEN?.trim();
+  const token = workerGithubToken(c.env);
   if (!token) {
     return c.json(
       {
@@ -266,7 +262,7 @@ app.get('/api/demo-run/:id/nodes/:nodeId/logs', async (c) => {
     if (err instanceof DemoGateError) {
       return c.json({ error: err.code, message: err.message }, err.status);
     }
-    return c.json({ error: 'gate_error', message: String(err) }, 500);
+    return jsonUpstream(c, 'gate_error', 500);
   }
 
   const record = await getDemoRun(token, c.req.param('id'));
@@ -288,8 +284,7 @@ app.get('/api/demo-run/:id/nodes/:nodeId/logs', async (c) => {
     if (err instanceof TokenMissingError) {
       return c.json({ error: 'unavailable', message: err.message }, 503);
     }
-    const message = err instanceof Error ? err.message : String(err);
-    return c.json({ error: 'logs_failed', message }, 502);
+    return jsonUpstream(c, 'logs_failed');
   }
 });
 
@@ -305,7 +300,7 @@ app.post('/api/demo-ai-review', async (c) => {
     if (err instanceof DemoGateError) {
       return c.json({ error: err.code, message: err.message }, err.status);
     }
-    return c.json({ error: 'gate_error', message: String(err) }, 500);
+    return jsonUpstream(c, 'gate_error', 500);
   }
 
   let body: { message?: string; context?: string; locale?: string };
@@ -332,12 +327,20 @@ app.post('/api/demo-ai-review', async (c) => {
   const secret = c.env.DEMO_TICKET_SECRET;
   if (!secret) {
     return c.json(
-      { error: 'gate_unconfigured', message: 'DEMO_TICKET_SECRET missing.' },
+      {
+        error: 'gate_unconfigured',
+        message: 'Demo gate secrets are not configured.',
+      },
       503,
     );
   }
 
   const auth = await mintServiceAuth(secret, 'pipeview');
+  const message = clampRedacted(body.message, 4000);
+  const context = clampRedacted(
+    body.context ?? 'Pipeview live demo failure',
+    AI_CONTEXT_MAX_BYTES,
+  );
 
   const edgeRes = await fetch(EDGE_ANALYZE_URL, {
     method: 'POST',
@@ -348,8 +351,8 @@ app.post('/api/demo-ai-review', async (c) => {
       'X-Demo-Service-Sig': auth.sig,
     },
     body: JSON.stringify({
-      message: body.message,
-      context: body.context ?? 'Pipeview live demo failure',
+      message,
+      context,
       locale: body.locale ?? 'pt-BR',
     }),
   });
@@ -359,15 +362,7 @@ app.post('/api/demo-ai-review', async (c) => {
   try {
     payload = JSON.parse(text);
   } catch {
-    return c.json(
-      {
-        error: 'edge_unparseable',
-        message: 'Edge Labs returned non-JSON.',
-        status: edgeRes.status,
-        raw: text.slice(0, 500),
-      },
-      502,
-    );
+    return jsonUpstream(c, 'edge_unparseable');
   }
 
   return c.json(payload, edgeRes.ok ? 200 : 502);
@@ -389,39 +384,15 @@ const HONEYPOT_PATHS = new Set([
   '/actuator/env',
 ]);
 
-const HONEYPOT_REPLIES = [
-  { pt: 'tenta mais', en: 'try again' },
-  { pt: 'ainda não', en: 'not yet' },
-  { pt: 'quase lá', en: 'almost' },
-  { pt: 'boa tentativa', en: 'nice try' },
-];
-
 function honeypotReply(pathname: string): Response {
-  const pick =
-    HONEYPOT_REPLIES[Math.abs(hashStr(pathname)) % HONEYPOT_REPLIES.length] ??
-    HONEYPOT_REPLIES[0];
   const headers = new Headers({
     'Cache-Control': 'no-store',
   });
   applySecurityHeaders(headers, false);
-  return Response.json(
-    {
-      ok: false,
-      hint: pick.pt,
-      hint_en: pick.en,
-      note: 'Fourth wall: scanners get a wink, not a foothold.',
-    },
-    {
-      status: 404,
-      headers,
-    },
-  );
-}
-
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return h;
+  return Response.json(buildHoneypotBody(pathname), {
+    status: 404,
+    headers,
+  });
 }
 
 function guessMime(pathname: string): string | null {

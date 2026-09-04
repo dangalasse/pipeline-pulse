@@ -12,6 +12,8 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:security": "vitest run shared/redact.test.ts shared/honeypot.test.ts shared/lab-object.test.ts shared/github-job-logs.test.ts shared/public-json.test.ts shared/cors.test.ts worker/demo-gate.test.ts worker/github-access.test.ts",
+    "test:e2e": "playwright test",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "deploy:staging": "npm run build && wrangler deploy --env staging",
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@cloudflare/workers-types": "^4.20250525.0",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
