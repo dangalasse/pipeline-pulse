@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   type LabPane,
   composeLabSource,
@@ -10,8 +10,6 @@ interface LabSnippetProps {
   source: string;
   disabled?: boolean;
   hint: string;
-  preview?: ReactNode;
-  previewLabel: string;
   onChange: (source: string) => void;
 }
 
@@ -25,8 +23,6 @@ export function LabSnippet({
   source,
   disabled,
   hint,
-  preview,
-  previewLabel,
   onChange,
 }: LabSnippetProps) {
   const [pane, setPane] = useState<LabPane>('css');
@@ -128,12 +124,6 @@ export function LabSnippet({
             />
           </div>
         </div>
-        {preview ? (
-          <aside className="palco" aria-label={previewLabel}>
-            <span className="palco-glow" aria-hidden="true" />
-            {preview}
-          </aside>
-        ) : null}
       </div>
       <p className="snippet-hint">{hint}</p>
     </div>

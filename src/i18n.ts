@@ -67,6 +67,7 @@ export interface UiCopy {
   labSnippet: string;
   labHint: string;
   labLive: string;
+  palcoKicker: string;
 }
 
 const PT: UiCopy = {
@@ -126,6 +127,7 @@ const PT: UiCopy = {
   labHint:
     'Edita o código e corre a demo. O palco partilhado só muda quando o job Preview conclui.',
   labLive: 'Objecto do palco',
+  palcoKicker: 'palco',
 };
 
 const EN: UiCopy = {
@@ -184,6 +186,7 @@ const EN: UiCopy = {
   labHint:
     'Edit the code and run the demo. The shared stage updates only when the Preview job finishes.',
   labLive: 'Stage object',
+  palcoKicker: 'stage',
 };
 
 export function copyFor(locale: Locale): UiCopy {

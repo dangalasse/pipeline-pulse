@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type TransitionEvent, useState } from 'react';
 import type {
   NodeDetailsMap,
   NodeRunDetail,
@@ -211,17 +211,29 @@ export function PipelineCanvas({
   onClearLog,
 }: PipelineCanvasProps) {
   const [selected, setSelected] = useState<NodeId | null>(null);
+  const [open, setOpen] = useState(false);
   const english = isEnglish(locale);
   const selectedNode = PIPELINE_NODES.find((n) => n.id === selected);
 
   const selectNode = (nodeId: NodeId) => {
+    if (nodeId === selected && open) {
+      setOpen(false);
+      return;
+    }
     if (nodeId !== selected) {
       onClearLog?.();
     }
     setSelected(nodeId);
+    requestAnimationFrame(() => setOpen(true));
   };
 
   const closeDetail = () => {
+    setOpen(false);
+  };
+
+  const finishClose = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.propertyName !== 'grid-template-rows') return;
+    if (open) return;
     onClearLog?.();
     setSelected(null);
   };
@@ -264,20 +276,27 @@ export function PipelineCanvas({
           })}
         </ol>
       </div>
-      {selectedNode ? (
-        <NodeDetail
-          node={selectedNode}
-          locale={locale}
-          t={t}
-          detail={nodeDetails?.[selectedNode.id]}
-          runId={runId}
-          logLoading={logLoading}
-          nodeLog={nodeLog}
-          onFetchLog={onFetchLog}
-          onClearLog={onClearLog}
-          onClose={closeDetail}
-        />
-      ) : null}
+      <div
+        className={`node-drawer${open ? ' is-open' : ''}`}
+        onTransitionEnd={finishClose}
+      >
+        <div className="node-drawer-inner">
+          {selectedNode ? (
+            <NodeDetail
+              node={selectedNode}
+              locale={locale}
+              t={t}
+              detail={nodeDetails?.[selectedNode.id]}
+              runId={runId}
+              logLoading={logLoading}
+              nodeLog={nodeLog}
+              onFetchLog={onFetchLog}
+              onClearLog={onClearLog}
+              onClose={closeDetail}
+            />
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

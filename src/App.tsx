@@ -382,14 +382,21 @@ export default function App() {
         </section>
 
         <p className="lab-inline-lede muted">{t.labLede}</p>
-        <LabSnippet
-          source={draft}
-          disabled={demoLoading}
-          hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
-          previewLabel={t.labLive}
-          preview={<LabLive source={draft} title={t.labLive} />}
-          onChange={setDraft}
-        />
+        <div className="studio">
+          <aside className="vitrine" aria-label={t.labLive}>
+            <span className="vitrine-kicker">{t.palcoKicker}</span>
+            <span className="vitrine-halo" aria-hidden="true" />
+            <span className="vitrine-ring" aria-hidden="true" />
+            <span className="vitrine-plinth" aria-hidden="true" />
+            <LabLive source={draft} title={t.labLive} />
+          </aside>
+          <LabSnippet
+            source={draft}
+            disabled={demoLoading}
+            hint={shippedSha ? `${t.labHint} · sha ${shippedSha}` : t.labHint}
+            onChange={setDraft}
+          />
+        </div>
       </div>
     </div>
   );
